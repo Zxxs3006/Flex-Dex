@@ -34,6 +34,12 @@
         {% for user_card in cards %}
         <div class="binder-card" onclick="showCardDetails('{{ user_card.card.card_id }}')">
             <img src="{{ user_card.card.image_small }}" alt="{{ user_card.card.name }}">
+            {% if user_card.verified %}
+            <span style="position: absolute; top: 5px; left: 5px; background: #4CAF50; color: white;
+                         padding: 3px 6px; border-radius: 50%; font-size: 0.7em;" title="Verified">
+                ✓
+            </span>
+            {% endif %}
             {% if user_card.quantity > 1 %}
             <span style="position: absolute; top: 5px; right: 5px; background: #cc0000; color: white;
                          padding: 2px 8px; border-radius: 10px; font-size: 0.8em;">

@@ -92,20 +92,24 @@ class User(UserMixin, db.Model):
         return min(progress, 100)
 
     def update_stats(self):
-        """Recalculate user stats from their collection."""
+        """Recalculate user stats from their collection (only verified cards count for rankings)."""
         user_cards = UserCard.query.filter_by(user_id=self.id).all()
 
-        self.total_cards = sum(uc.quantity for uc in user_cards)
-        self.unique_pokemon = len(set(uc.card.national_dex for uc in user_cards if uc.card.national_dex))
+        # Only verified cards count toward rankings and stats
+        verified_cards = [uc for uc in user_cards if uc.verified]
+
+        self.total_cards = sum(uc.quantity for uc in verified_cards)
+        self.unique_pokemon = len(set(uc.card.national_dex for uc in verified_cards if uc.card.national_dex))
         self.collection_value = sum(
-            (uc.card.price_market or 0) * uc.quantity for uc in user_cards
+            (uc.card.price_market or 0) * uc.quantity for uc in verified_cards
         )
         db.session.commit()
 
     def get_regional_progress(self):
-        """Get completion progress for each regional Pokédex."""
+        """Get completion progress for each regional Pokédex (only verified cards count)."""
         user_cards = UserCard.query.filter_by(user_id=self.id).all()
-        owned_dex_numbers = set(uc.card.national_dex for uc in user_cards if uc.card.national_dex)
+        # Only count verified cards
+        owned_dex_numbers = set(uc.card.national_dex for uc in user_cards if uc.card.national_dex and uc.verified)
 
         progress = {}
         for region_id, region in REGIONAL_DEXES.items():
@@ -189,6 +193,7 @@ class UserCard(db.Model):
     condition = db.Column(db.String(20), default='Near Mint')
     added_at = db.Column(db.DateTime, default=datetime.utcnow)
     notes = db.Column(db.Text)
+    verified = db.Column(db.Boolean, default=False)  # Card ownership verified via photo
 
     __table_args__ = (
         db.UniqueConstraint('user_id', 'card_id', 'binder_id', name='unique_user_card_binder'),

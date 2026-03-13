@@ -9,6 +9,7 @@ from config import Config
 from database import db, init_db, User, Card, Binder, UserCard, Achievement, RANKS, REGIONAL_DEXES
 from database.models import Party, PartyCard, Battle, BattleTurn, BattleStats, TYPE_CHART
 from scanner import CardLookup
+from scanner.image_matcher import image_matcher
 from datetime import datetime
 import json
 import os
@@ -435,37 +436,79 @@ def analytics():
 @app.route('/add_to_binder', methods=['POST'])
 @login_required
 def add_to_binder():
-    """Add card to binder (form submission)."""
+    """Redirect to verification page before adding card."""
     card_id = request.form.get('card_id')
 
     if not card_id:
         flash('No card specified', 'error')
         return redirect(url_for('scanner'))
 
-    card = get_or_create_card(card_id)
+    # Redirect to verification page
+    return redirect(url_for('verify_card', card_id=card_id))
 
-    if not card:
+
+@app.route('/verify/<card_id>')
+@login_required
+def verify_card(card_id):
+    """Card verification page."""
+    raw_card = card_lookup.get_card_by_id(card_id)
+
+    # Try pokemontcg.io if not found
+    if not raw_card:
+        raw_card = card_lookup.get_card_pokemontcg(card_id)
+        if raw_card:
+            raw_card['_source'] = 'pokemontcg'
+
+    if not raw_card:
         flash('Card not found', 'error')
         return redirect(url_for('scanner'))
 
-    old_total = current_user.total_cards
+    card = card_lookup.format_card_data(raw_card)
+    return render_template('verify_card.html', card=card)
 
-    user_card = UserCard.query.filter_by(user_id=current_user.id, card_id=card.id).first()
 
-    if user_card:
-        user_card.quantity += 1
-    else:
-        user_card = UserCard(user_id=current_user.id, card_id=card.id)
-        db.session.add(user_card)
+@app.route('/api/verify_card', methods=['POST'])
+@login_required
+def api_verify_card():
+    """API endpoint to verify card ownership via image matching."""
+    card_id = request.form.get('card_id')
+    reference_url = request.form.get('reference_url')
 
-    db.session.commit()
+    if 'image' not in request.files:
+        return jsonify({'match': False, 'error': 'No image provided', 'percentage': 0})
 
-    # Update user stats and check for rank up
-    current_user.update_stats()
-    check_achievements(current_user, old_total)
+    image_file = request.files['image']
+    image_bytes = image_file.read()
 
-    flash('{} added to your collection!'.format(card.name), 'success')
-    return redirect(url_for('binder'))
+    if not image_bytes:
+        return jsonify({'match': False, 'error': 'Empty image', 'percentage': 0})
+
+    # Verify the image matches
+    result = image_matcher.verify_card(reference_url, image_bytes)
+
+    # If verified, add to binder
+    if result.get('match'):
+        card = get_or_create_card(card_id)
+
+        if card:
+            old_total = current_user.total_cards
+
+            user_card = UserCard.query.filter_by(user_id=current_user.id, card_id=card.id).first()
+
+            if user_card:
+                user_card.quantity += 1
+                user_card.verified = True
+            else:
+                user_card = UserCard(user_id=current_user.id, card_id=card.id, verified=True)
+                db.session.add(user_card)
+
+            db.session.commit()
+
+            # Update user stats and check for rank up
+            current_user.update_stats()
+            check_achievements(current_user, old_total)
+
+    return jsonify(result)
 
 
 # ============== API Routes ==============

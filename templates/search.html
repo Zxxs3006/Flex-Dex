@@ -89,16 +89,6 @@
             {% endfor %}
         </div>
 
-        <!-- Not What You Were Looking For Button -->
-        {% if not show_all %}
-        <div class="more-results-section">
-            <p>Can't find your card?</p>
-            <a href="{{ url_for('search', q=query, number=number, set=set_name, use_pokemontcg='1' if use_pokemontcg else '', show_all='1') }}"
-               class="pokedex-btn btn-secondary">
-                Not What You Were Looking For? Show All Results
-            </a>
-        </div>
-        {% endif %}
         {% else %}
         <div class="empty-state">
             <div class="empty-state-icon">🔍</div>
@@ -422,19 +412,6 @@
     cursor: pointer;
 }
 
-/* More Results Section */
-.more-results-section {
-    text-align: center;
-    margin-top: 25px;
-    padding: 20px;
-    background: #f8f9fa;
-    border-radius: 15px;
-}
-
-.more-results-section p {
-    margin-bottom: 12px;
-    color: var(--pokedex-gray);
-}
 </style>
 {% endblock %}
 

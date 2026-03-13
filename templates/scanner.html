@@ -162,8 +162,6 @@
 {% endblock %}
 
 {% block extra_js %}
-<!-- Tesseract.js for browser-based OCR -->
-<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="{{ url_for('static', filename='js/scanner.js') }}"></script>
 <script>
     const isAuthenticated = {{ 'true' if current_user.is_authenticated else 'false' }};

@@ -1,38 +1,4 @@
-// FlexDex Card Scanner - Smart OCR with Auto-Crop
-
-let tesseractWorker = null;
-let ocrReady = false;
-
-// Initialize Tesseract.js OCR engine
-async function initOCR() {
-    const statusEl = document.getElementById('ocr-status');
-
-    try {
-        statusEl.textContent = 'Loading OCR engine... (this may take a moment)';
-        statusEl.style.background = '#fff3cd';
-
-        tesseractWorker = await Tesseract.createWorker('eng', 1, {
-            logger: m => {
-                if (m.status === 'recognizing text') {
-                    statusEl.textContent = `Processing: ${Math.round(m.progress * 100)}%`;
-                }
-            }
-        });
-
-        ocrReady = true;
-        statusEl.textContent = 'OCR ready! Position your card in the frame.';
-        statusEl.style.background = '#d4edda';
-
-        setTimeout(() => {
-            statusEl.style.display = 'none';
-        }, 3000);
-
-    } catch (error) {
-        console.error('OCR init error:', error);
-        statusEl.textContent = 'OCR failed to load. Use search mode instead.';
-        statusEl.style.background = '#f8d7da';
-    }
-}
+// FlexDex Card Scanner - Using OCR.space API
 
 // Switch between camera and search modes
 function switchMode(mode) {
@@ -41,44 +7,6 @@ function switchMode(mode) {
 
     document.querySelector(`.mode-tab[onclick="switchMode('${mode}')"]`).classList.add('active');
     document.getElementById(`${mode}-mode`).classList.add('active');
-}
-
-// Image preprocessing for better OCR
-function preprocessImage(canvas) {
-    const ctx = canvas.getContext('2d');
-    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const data = imageData.data;
-
-    // Convert to grayscale and increase contrast
-    for (let i = 0; i < data.length; i += 4) {
-        // Grayscale
-        const avg = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
-
-        // Increase contrast
-        let contrast = 1.5;
-        let newVal = ((avg - 128) * contrast) + 128;
-        newVal = Math.max(0, Math.min(255, newVal));
-
-        // Threshold for cleaner text
-        newVal = newVal > 140 ? 255 : 0;
-
-        data[i] = newVal;
-        data[i + 1] = newVal;
-        data[i + 2] = newVal;
-    }
-
-    ctx.putImageData(imageData, 0, 0);
-    return canvas;
-}
-
-// Crop specific region from canvas
-function cropRegion(sourceCanvas, x, y, width, height) {
-    const croppedCanvas = document.createElement('canvas');
-    croppedCanvas.width = width;
-    croppedCanvas.height = height;
-    const ctx = croppedCanvas.getContext('2d');
-    ctx.drawImage(sourceCanvas, x, y, width, height, 0, 0, width, height);
-    return croppedCanvas;
 }
 
 class CardScanner {
@@ -92,6 +20,7 @@ class CardScanner {
         this.scanResult = document.getElementById('scan-result');
         this.selectedCard = document.getElementById('selected-card');
         this.cardDisplay = document.getElementById('card-display');
+        this.ocrStatus = document.getElementById('ocr-status');
 
         this.stream = null;
         this.isScanning = false;
@@ -99,6 +28,15 @@ class CardScanner {
 
         this.initButtons();
         this.initSearch();
+
+        // Show ready message
+        if (this.ocrStatus) {
+            this.ocrStatus.textContent = 'Scanner ready! Position your card in the frame.';
+            this.ocrStatus.style.background = '#d4edda';
+            setTimeout(() => {
+                this.ocrStatus.style.display = 'none';
+            }, 3000);
+        }
     }
 
     initButtons() {
@@ -182,14 +120,9 @@ class CardScanner {
     async captureAndScan() {
         if (this.isScanning) return;
 
-        if (!ocrReady) {
-            this.statusText.textContent = 'OCR not ready yet. Please wait...';
-            return;
-        }
-
         this.isScanning = true;
         this.container.classList.add('scanning');
-        this.statusText.textContent = 'Analyzing card...';
+        this.statusText.textContent = 'Scanning card... (this may take a few seconds)';
         document.getElementById('btn-capture').disabled = true;
 
         // Capture full frame
@@ -199,57 +132,43 @@ class CardScanner {
         ctx.drawImage(this.video, 0, 0);
 
         try {
-            // Pokemon card layout:
-            // - Name is at TOP (roughly top 12% of card)
-            // - Card number is at BOTTOM LEFT (bottom 8%, left 30%)
+            // Convert to base64
+            const imageData = this.canvas.toDataURL('image/png');
 
-            const w = this.canvas.width;
-            const h = this.canvas.height;
+            this.statusText.textContent = 'Analyzing card with OCR...';
 
-            // Crop NAME region (top portion, centered)
-            const nameRegion = cropRegion(this.canvas,
-                Math.floor(w * 0.1),  // 10% from left
-                Math.floor(h * 0.02), // 2% from top
-                Math.floor(w * 0.8),  // 80% width
-                Math.floor(h * 0.12)  // 12% height
-            );
-            const processedName = preprocessImage(nameRegion);
+            // Send to backend OCR API
+            const response = await fetch('/api/ocr', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: imageData })
+            });
 
-            // Crop NUMBER region (bottom left)
-            const numberRegion = cropRegion(this.canvas,
-                Math.floor(w * 0.02), // 2% from left
-                Math.floor(h * 0.88), // 88% from top
-                Math.floor(w * 0.35), // 35% width
-                Math.floor(h * 0.10)  // 10% height
-            );
-            const processedNumber = preprocessImage(numberRegion);
+            const result = await response.json();
 
-            this.statusText.textContent = 'Reading card name...';
+            if (result.success) {
+                const cardName = result.card_name;
+                const cardNumber = result.card_number;
 
-            // OCR on name region
-            const nameResult = await tesseractWorker.recognize(processedName);
-            let cardName = this.cleanCardName(nameResult.data.text);
+                console.log('OCR Result:', result.raw_text);
+                console.log('Detected Name:', cardName);
+                console.log('Detected Number:', cardNumber);
 
-            this.statusText.textContent = 'Reading card number...';
+                if (cardName && cardName.length >= 2) {
+                    let statusMsg = `Found: "${cardName}"`;
+                    if (cardNumber) {
+                        statusMsg += ` #${cardNumber}`;
+                    }
+                    this.statusText.textContent = statusMsg + ' - Searching...';
 
-            // OCR on number region
-            const numberResult = await tesseractWorker.recognize(processedNumber);
-            let cardNumber = this.cleanCardNumber(numberResult.data.text);
-
-            console.log('Detected Name:', cardName);
-            console.log('Detected Number:', cardNumber);
-
-            if (cardName.length >= 2) {
-                let statusMsg = `Found: "${cardName}"`;
-                if (cardNumber) {
-                    statusMsg += ` #${cardNumber}`;
+                    // Search with both name and number
+                    await this.searchCardsWithNumber(cardName, cardNumber);
+                } else {
+                    this.statusText.textContent = 'Could not read card. Try better lighting or use manual search.';
+                    this.showRawOCR(result.raw_text);
                 }
-                this.statusText.textContent = statusMsg + ' - Searching...';
-
-                // Search with both name and number for better accuracy
-                await this.searchCardsWithNumber(cardName, cardNumber);
             } else {
-                this.statusText.textContent = 'Could not read card. Try better lighting or use manual search.';
+                this.statusText.textContent = `Scan failed: ${result.error}. Try manual search.`;
             }
 
         } catch (error) {
@@ -262,40 +181,18 @@ class CardScanner {
         document.getElementById('btn-capture').disabled = false;
     }
 
-    cleanCardName(text) {
-        if (!text) return '';
-
-        // Get first line, clean it up
-        let name = text.split('\n')[0].trim();
-
-        // Remove common OCR artifacts and Pokemon card text
-        name = name.replace(/[^a-zA-Z\s\-\'éÉ]/g, '').trim();
-
-        // Remove Pokemon card keywords
-        const removeWords = ['BASIC', 'STAGE', 'HP', 'GX', 'EX', 'VMAX', 'VSTAR', 'VSS', 'VV', 'POKEMON'];
-        removeWords.forEach(word => {
-            name = name.replace(new RegExp('\\b' + word + '\\b', 'gi'), '').trim();
-        });
-
-        // Take only first 1-2 words (Pokemon names are usually 1-2 words)
-        const words = name.split(/\s+/).filter(w => w.length > 1);
-        name = words.slice(0, 2).join(' ');
-
-        return name;
-    }
-
-    cleanCardNumber(text) {
-        if (!text) return '';
-
-        // Look for pattern like "123/456" or just numbers
-        const match = text.match(/(\d+)\s*[\/\\]\s*(\d+)/);
-        if (match) {
-            return match[1]; // Return just the first number
+    showRawOCR(text) {
+        // Show raw OCR text so user can manually search
+        if (text) {
+            this.searchResults.innerHTML = `
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                    <p style="color: #666; margin-bottom: 10px;">Raw text detected:</p>
+                    <pre style="white-space: pre-wrap; font-size: 12px; color: #333;">${text}</pre>
+                    <p style="color: #666; margin-top: 10px;">Try typing the Pokemon name in the Search tab.</p>
+                </div>
+            `;
+            this.scanResult.style.display = 'block';
         }
-
-        // Try to find any number
-        const numMatch = text.match(/\d+/);
-        return numMatch ? numMatch[0] : '';
     }
 
     async searchCardsWithNumber(name, number) {
@@ -454,17 +351,6 @@ class CardScanner {
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
-    // Initialize OCR engine
-    if (typeof Tesseract !== 'undefined') {
-        initOCR();
-    } else {
-        const statusEl = document.getElementById('ocr-status');
-        if (statusEl) {
-            statusEl.textContent = 'OCR library not loaded. Use search mode.';
-            statusEl.style.background = '#f8d7da';
-        }
-    }
-
     // Initialize scanner
     if (document.getElementById('video-feed')) {
         window.cardScanner = new CardScanner();

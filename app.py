@@ -465,6 +465,139 @@ def api_search():
     return jsonify({'success': True, 'cards': cards})
 
 
+@app.route('/api/ocr', methods=['POST'])
+def api_ocr():
+    """OCR endpoint using OCR.space API (free, 25k/month)."""
+    import base64
+
+    data = request.get_json()
+    if not data or 'image' not in data:
+        return jsonify({'success': False, 'error': 'No image provided'})
+
+    # Get base64 image data
+    image_data = data['image']
+
+    # Remove data URL prefix if present
+    if ',' in image_data:
+        image_data = image_data.split(',')[1]
+
+    try:
+        # OCR.space free API endpoint
+        ocr_url = 'https://api.ocr.space/parse/image'
+
+        # OCR.space free demo API key
+        api_key = 'K85682737488957'
+
+        payload = {
+            'apikey': api_key,
+            'base64Image': f'data:image/png;base64,{image_data}',
+            'language': 'eng',
+            'isOverlayRequired': False,
+            'detectOrientation': True,
+            'scale': True,
+            'OCREngine': 2  # Engine 2 is better for stylized text
+        }
+
+        response = requests.post(ocr_url, data=payload, timeout=30)
+        result = response.json()
+
+        if result.get('IsErroredOnProcessing'):
+            error_msg = result.get('ErrorMessage', ['Unknown error'])
+            return jsonify({'success': False, 'error': error_msg[0] if isinstance(error_msg, list) else error_msg})
+
+        # Extract text from response
+        parsed_results = result.get('ParsedResults', [])
+        if not parsed_results:
+            return jsonify({'success': False, 'error': 'No text detected'})
+
+        text = parsed_results[0].get('ParsedText', '')
+
+        # Clean and extract card name and number
+        card_name = extract_card_name(text)
+        card_number = extract_card_number(text)
+
+        return jsonify({
+            'success': True,
+            'raw_text': text,
+            'card_name': card_name,
+            'card_number': card_number
+        })
+
+    except requests.Timeout:
+        return jsonify({'success': False, 'error': 'OCR request timed out'})
+    except Exception as e:
+        print(f'OCR error: {e}')
+        return jsonify({'success': False, 'error': str(e)})
+
+
+def extract_card_name(text):
+    """Extract Pokemon card name from OCR text."""
+    if not text:
+        return ''
+
+    lines = text.strip().split('\n')
+
+    # First line usually contains the Pokemon name
+    for line in lines[:3]:  # Check first 3 lines
+        line = line.strip()
+
+        # Skip lines that are just numbers or HP
+        if not line or line.isdigit():
+            continue
+        if 'HP' in line.upper() and any(c.isdigit() for c in line):
+            # This line has HP, try to extract name before HP
+            hp_index = line.upper().find('HP')
+            if hp_index > 0:
+                name = line[:hp_index].strip()
+                # Clean up
+                name = ''.join(c for c in name if c.isalpha() or c.isspace() or c == '-' or c == "'").strip()
+                if len(name) >= 2:
+                    return name
+            continue
+
+        # Clean the name
+        name = line
+
+        # Remove common Pokemon card text
+        remove_words = ['BASIC', 'STAGE', 'GX', 'EX', 'VMAX', 'VSTAR', 'V', 'POKEMON', 'TRAINER', 'ENERGY']
+        for word in remove_words:
+            name = name.replace(word, '').replace(word.lower(), '')
+
+        # Keep only letters, spaces, hyphens, and apostrophes
+        name = ''.join(c for c in name if c.isalpha() or c.isspace() or c == '-' or c == "'").strip()
+
+        # Take first 2 words max (Pokemon names are usually 1-2 words)
+        words = name.split()
+        if words:
+            name = ' '.join(words[:2])
+            if len(name) >= 2:
+                return name
+
+    return ''
+
+
+def extract_card_number(text):
+    """Extract card number from OCR text."""
+    if not text:
+        return ''
+
+    import re
+
+    # Look for patterns like "123/456" or "123 / 456"
+    match = re.search(r'(\d{1,3})\s*[/\\]\s*(\d{1,3})', text)
+    if match:
+        return match.group(1)
+
+    # Look for number at end of text (often card number)
+    lines = text.strip().split('\n')
+    for line in reversed(lines):
+        match = re.search(r'(\d{1,3})\s*[/\\]\s*(\d{1,3})', line)
+        if match:
+            return match.group(1)
+
+    return ''
+
+
 @app.route('/api/card/<card_id>')
 def api_card(card_id):
     """Get card details API."""

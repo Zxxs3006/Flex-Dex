@@ -36,6 +36,15 @@
                 <small>Helps narrow down if you know the set</small>
             </div>
 
+            <!-- API Toggle Option -->
+            <div class="search-field api-toggle">
+                <label class="checkbox-label">
+                    <input type="checkbox" name="use_pokemontcg" value="1" {% if use_pokemontcg %}checked{% endif %}>
+                    <span>Search Pokemon TCG database directly</span>
+                </label>
+                <small>Uses an alternative database - may find different cards</small>
+            </div>
+
             <button type="submit" class="pokedex-btn btn-primary btn-large">
                 Search Cards
             </button>
@@ -79,6 +88,17 @@
             </div>
             {% endfor %}
         </div>
+
+        <!-- Not What You Were Looking For Button -->
+        {% if not show_all and cards|length >= 5 %}
+        <div class="more-results-section">
+            <p>Can't find your card?</p>
+            <a href="{{ url_for('search', q=query, number=number, set=set_name, use_pokemontcg=use_pokemontcg, show_all=1) }}"
+               class="pokedex-btn btn-secondary">
+                Not What You Were Looking For? Show All Results
+            </a>
+        </div>
+        {% endif %}
         {% else %}
         <div class="empty-state">
             <div class="empty-state-icon">🔍</div>
@@ -378,6 +398,42 @@
     .search-results-grid {
         grid-template-columns: 1fr;
     }
+}
+
+/* API Toggle Checkbox */
+.api-toggle {
+    background: #f8f9fa;
+    padding: 12px 15px;
+    border-radius: 10px;
+    border: 1px dashed #ddd;
+}
+
+.checkbox-label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.checkbox-label input[type="checkbox"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+
+/* More Results Section */
+.more-results-section {
+    text-align: center;
+    margin-top: 25px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 15px;
+}
+
+.more-results-section p {
+    margin-bottom: 12px;
+    color: var(--pokedex-gray);
 }
 </style>
 {% endblock %}

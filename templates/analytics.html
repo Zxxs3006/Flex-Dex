@@ -37,6 +37,17 @@
                 <div>
                     <strong>{{ stats.most_valuable.name }}</strong>
                     <p class="card-price">${{ "%.2f"|format(stats.most_valuable.price_market or 0) }}</p>
+                    <div class="price-breakdown" style="font-size: 0.85em; color: #666; margin-top: 5px;">
+                        {% if stats.most_valuable.price_low %}
+                        <span>Low: ${{ "%.2f"|format(stats.most_valuable.price_low) }}</span>
+                        {% endif %}
+                        {% if stats.most_valuable.price_mid %}
+                        <span style="margin-left: 8px;">Mid: ${{ "%.2f"|format(stats.most_valuable.price_mid) }}</span>
+                        {% endif %}
+                        {% if stats.most_valuable.price_high %}
+                        <span style="margin-left: 8px;">High: ${{ "%.2f"|format(stats.most_valuable.price_high) }}</span>
+                        {% endif %}
+                    </div>
                 </div>
             </div>
         </div>

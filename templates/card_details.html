@@ -61,15 +61,29 @@
             </div>
             {% endif %}
 
-            {% if card.prices.market %}
-            <div class="card-price" style="font-size: 1.5em; margin-top: 20px;">
-                Market Price: ${{ "%.2f"|format(card.prices.market) }}
+            {% if card.prices.market or card.prices.low or card.prices.mid or card.prices.high %}
+            <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 10px;">
+                <h4 style="margin-bottom: 10px;">Price Information</h4>
+                {% if card.prices.market %}
+                <div class="card-price" style="font-size: 1.4em; color: var(--pokedex-green); margin-bottom: 10px;">
+                    Market: ${{ "%.2f"|format(card.prices.market) }}
+                </div>
+                {% endif %}
+                <div style="display: flex; flex-wrap: wrap; gap: 15px; font-size: 0.95em;">
+                    {% if card.prices.low %}
+                    <div><strong>Low:</strong> ${{ "%.2f"|format(card.prices.low) }}</div>
+                    {% endif %}
+                    {% if card.prices.mid %}
+                    <div><strong>Mid:</strong> ${{ "%.2f"|format(card.prices.mid) }}</div>
+                    {% endif %}
+                    {% if card.prices.high %}
+                    <div><strong>High:</strong> ${{ "%.2f"|format(card.prices.high) }}</div>
+                    {% endif %}
+                </div>
+                {% if card.prices.source %}
+                <p style="font-size: 0.8em; color: #999; margin-top: 10px;">Source: {{ card.prices.source }}</p>
+                {% endif %}
             </div>
-            {% if card.prices.low and card.prices.high %}
-            <p style="font-size: 0.9em; color: #666;">
-                Range: ${{ "%.2f"|format(card.prices.low) }} - ${{ "%.2f"|format(card.prices.high) }}
-            </p>
-            {% endif %}
             {% endif %}
 
             <!-- Buy Links -->

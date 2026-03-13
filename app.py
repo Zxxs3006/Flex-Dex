@@ -68,6 +68,8 @@ def search():
     query = request.args.get('q', '').strip()
     card_number = request.args.get('number', '').strip()
     set_name = request.args.get('set', '').strip()
+    use_pokemontcg = request.args.get('use_pokemontcg', '') == '1'
+    show_all = request.args.get('show_all', '') == '1'
 
     # If no query, show empty search page with tips
     if not query:
@@ -77,10 +79,22 @@ def search():
                                set_name='',
                                cards=[],
                                searched=False,
-                               exact_match=False)
+                               exact_match=False,
+                               use_pokemontcg=False,
+                               show_all=False)
 
-    # Search for cards by name
-    raw_cards = card_lookup.search_fuzzy(query, limit=30)
+    # Determine limit based on show_all parameter
+    limit = 100 if show_all else 30
+
+    # Search for cards - use pokemontcg.io directly if requested
+    if use_pokemontcg:
+        raw_cards = card_lookup.search_pokemontcg(query, limit=limit)
+        # Mark as pokemontcg source for proper formatting
+        for card in raw_cards:
+            card['_source'] = 'pokemontcg'
+    else:
+        raw_cards = card_lookup.search_fuzzy(query, limit=limit)
+
     cards = [card_lookup.format_card_data(c) for c in raw_cards]
 
     exact_match = False
@@ -117,7 +131,9 @@ def search():
                            set_name=set_name,
                            cards=cards,
                            searched=True,
-                           exact_match=exact_match)
+                           exact_match=exact_match,
+                           use_pokemontcg=use_pokemontcg,
+                           show_all=show_all)
 
 
 @app.route('/card/<card_id>')

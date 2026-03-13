@@ -53,6 +53,7 @@
         justify-content: center;
         gap: 10px;
         margin-bottom: 20px;
+        flex-wrap: wrap;
     }
     .mode-tab {
         padding: 10px 20px;
@@ -61,6 +62,7 @@
         background: white;
         cursor: pointer;
         transition: all 0.2s;
+        font-size: 14px;
     }
     .mode-tab.active {
         background: var(--flex-purple, #8b5cf6);
@@ -80,24 +82,113 @@
         margin-bottom: 15px;
         text-align: center;
     }
+
+    /* Browse Mode Styles */
+    .browse-container {
+        max-width: 800px;
+        margin: 0 auto;
+    }
+    .browse-filter {
+        width: 100%;
+        padding: 12px 20px;
+        border-radius: 25px;
+        border: 2px solid #ddd;
+        font-size: 16px;
+        margin-bottom: 20px;
+        box-sizing: border-box;
+    }
+    .browse-filter:focus {
+        outline: none;
+        border-color: var(--flex-purple, #8b5cf6);
+    }
+    .pokemon-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+        gap: 10px;
+        max-height: 400px;
+        overflow-y: auto;
+        padding: 10px;
+        background: #f8f9fa;
+        border-radius: 10px;
+    }
+    .pokemon-grid-item {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 10px 5px;
+        background: white;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 2px solid transparent;
+    }
+    .pokemon-grid-item:hover {
+        transform: scale(1.05);
+        border-color: var(--flex-purple, #8b5cf6);
+        box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+    }
+    .pokemon-grid-item img {
+        width: 60px;
+        height: 60px;
+        image-rendering: pixelated;
+    }
+    .pokemon-grid-item span {
+        font-size: 11px;
+        text-align: center;
+        margin-top: 5px;
+        color: #333;
+        font-weight: 500;
+    }
+    .browse-tip {
+        text-align: center;
+        color: #666;
+        margin-bottom: 15px;
+        font-size: 14px;
+    }
 </style>
 {% endblock %}
 
 {% block content %}
 <div class="scanner-page">
-    <h2 style="text-align: center; margin-bottom: 20px;">📷 PokéLens</h2>
-    <p style="text-align: center; margin-bottom: 20px; color: var(--pokedex-gray);">Scan your cards or search by name</p>
+    <h2 style="text-align: center; margin-bottom: 20px;">PokéLens</h2>
+    <p style="text-align: center; margin-bottom: 20px; color: var(--pokedex-gray);">Find your card by browsing, searching, or scanning</p>
 
     <!-- Mode Tabs -->
     <div class="mode-tabs">
-        <button class="mode-tab active" onclick="switchMode('camera')">📷 Camera</button>
-        <button class="mode-tab" onclick="switchMode('search')">🔍 Search</button>
+        <button class="mode-tab" onclick="switchMode('browse')">Browse</button>
+        <button class="mode-tab active" onclick="switchMode('search')">Search</button>
+        <button class="mode-tab" onclick="switchMode('camera')">Camera</button>
+    </div>
+
+    <!-- Browse Mode (Visual Pokemon Grid) -->
+    <div id="browse-mode" class="mode-content">
+        <div class="browse-container">
+            <p class="browse-tip">Tap the Pokemon on your card to find it!</p>
+            <input type="text" id="browse-filter" class="browse-filter" placeholder="Filter by name...">
+            <div id="pokemon-grid" class="pokemon-grid">
+                <p style="text-align: center; padding: 20px; grid-column: 1/-1;">Click "Browse" tab to load Pokemon</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Search Mode -->
+    <div id="search-mode" class="mode-content active">
+        <div style="max-width: 600px; margin: 0 auto;">
+            <form id="search-form" style="display: flex; gap: 10px; margin-bottom: 20px;">
+                <input type="text" id="search-input" placeholder="Enter Pokemon name..."
+                       style="flex: 1; padding: 12px 20px; border-radius: 25px; border: 2px solid #ddd; font-size: 16px;">
+                <button type="submit" class="pokedex-btn btn-primary">Search</button>
+            </form>
+            <p style="text-align: center; color: #666; font-size: 14px;">
+                Type the Pokemon name from your card (e.g., "Charizard", "Pikachu")
+            </p>
+        </div>
     </div>
 
     <!-- Camera Mode -->
-    <div id="camera-mode" class="mode-content active">
+    <div id="camera-mode" class="mode-content">
         <div id="ocr-status" class="ocr-status">
-            Loading OCR engine... Please wait.
+            Scanner ready
         </div>
 
         <div class="scanner-container" id="scanner-container">
@@ -105,15 +196,12 @@
                 <div>
                     <p style="font-size: 3em; margin-bottom: 10px;">📷</p>
                     <p>Click "Start Camera" to begin</p>
+                    <p style="font-size: 12px; color: #999; margin-top: 10px;">Tip: Browse mode is more reliable!</p>
                 </div>
             </div>
             <video id="video-feed" autoplay playsinline style="display: none;"></video>
             <canvas id="canvas-overlay"></canvas>
             <div class="scan-line"></div>
-        </div>
-
-        <div style="text-align: center; margin-top: 15px;">
-            <p id="scanner-status">Ready to scan</p>
         </div>
 
         <div style="display: flex; gap: 10px; justify-content: center; margin-top: 15px; flex-wrap: wrap;">
@@ -129,15 +217,9 @@
         </div>
     </div>
 
-    <!-- Search Mode -->
-    <div id="search-mode" class="mode-content">
-        <div style="max-width: 600px; margin: 0 auto;">
-            <form id="search-form" style="display: flex; gap: 10px; margin-bottom: 20px;">
-                <input type="text" id="search-input" placeholder="Enter Pokémon name..."
-                       style="flex: 1; padding: 12px 20px; border-radius: 25px; border: 2px solid #ddd; font-size: 16px;">
-                <button type="submit" class="pokedex-btn btn-primary">Search</button>
-            </form>
-        </div>
+    <!-- Status Text -->
+    <div style="text-align: center; margin-top: 15px;">
+        <p id="scanner-status">Ready to find cards</p>
     </div>
 
     <!-- Results -->

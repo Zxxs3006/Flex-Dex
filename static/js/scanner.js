@@ -1,12 +1,17 @@
-// FlexDex Card Scanner - Using OCR.space API
+// FlexDex Card Scanner - Browse & Match Mode
 
-// Switch between camera and search modes
+// Switch between camera, search, and browse modes
 function switchMode(mode) {
     document.querySelectorAll('.mode-tab').forEach(tab => tab.classList.remove('active'));
     document.querySelectorAll('.mode-content').forEach(content => content.classList.remove('active'));
 
     document.querySelector(`.mode-tab[onclick="switchMode('${mode}')"]`).classList.add('active');
     document.getElementById(`${mode}-mode`).classList.add('active');
+
+    // Load Pokemon grid when switching to browse mode
+    if (mode === 'browse' && window.cardScanner) {
+        window.cardScanner.loadPokemonGrid();
+    }
 }
 
 class CardScanner {
@@ -21,17 +26,21 @@ class CardScanner {
         this.selectedCard = document.getElementById('selected-card');
         this.cardDisplay = document.getElementById('card-display');
         this.ocrStatus = document.getElementById('ocr-status');
+        this.pokemonGrid = document.getElementById('pokemon-grid');
+        this.browseFilter = document.getElementById('browse-filter');
 
         this.stream = null;
         this.isScanning = false;
         this.selectedCardData = null;
+        this.allPokemon = [];
 
         this.initButtons();
         this.initSearch();
+        this.initBrowseFilter();
 
         // Show ready message
         if (this.ocrStatus) {
-            this.ocrStatus.textContent = 'Scanner ready! Position your card in the frame.';
+            this.ocrStatus.textContent = 'Ready! Use Browse mode to find your card visually.';
             this.ocrStatus.style.background = '#d4edda';
             setTimeout(() => {
                 this.ocrStatus.style.display = 'none';
@@ -64,6 +73,88 @@ class CardScanner {
         }
     }
 
+    initBrowseFilter() {
+        if (this.browseFilter) {
+            this.browseFilter.addEventListener('input', (e) => {
+                this.filterPokemonGrid(e.target.value);
+            });
+        }
+    }
+
+    async loadPokemonGrid() {
+        if (!this.pokemonGrid) return;
+        if (this.allPokemon.length > 0) {
+            // Already loaded, just display
+            this.displayPokemonGrid(this.allPokemon);
+            return;
+        }
+
+        this.pokemonGrid.innerHTML = '<p style="text-align: center; padding: 20px;">Loading Pokemon...</p>';
+
+        try {
+            const response = await fetch('/api/pokemon/browse');
+            const data = await response.json();
+
+            if (data.success) {
+                this.allPokemon = data.pokemon;
+                this.displayPokemonGrid(this.allPokemon);
+            }
+        } catch (error) {
+            console.error('Error loading Pokemon:', error);
+            this.pokemonGrid.innerHTML = '<p style="text-align: center; color: red;">Failed to load Pokemon</p>';
+        }
+    }
+
+    displayPokemonGrid(pokemon) {
+        if (!this.pokemonGrid) return;
+
+        this.pokemonGrid.innerHTML = '';
+
+        pokemon.forEach(p => {
+            const item = document.createElement('div');
+            item.className = 'pokemon-grid-item';
+            item.onclick = () => this.selectPokemon(p.name);
+
+            item.innerHTML = `
+                <img src="${p.sprite}" alt="${p.name}" loading="lazy">
+                <span>${p.name}</span>
+            `;
+
+            this.pokemonGrid.appendChild(item);
+        });
+    }
+
+    filterPokemonGrid(query) {
+        const filtered = this.allPokemon.filter(p =>
+            p.name.toLowerCase().includes(query.toLowerCase())
+        );
+        this.displayPokemonGrid(filtered);
+    }
+
+    async selectPokemon(name) {
+        this.statusText.textContent = `Searching for ${name} cards...`;
+
+        // Switch to show results
+        this.scanResult.style.display = 'block';
+        this.searchResults.innerHTML = '<p style="text-align: center;">Loading cards...</p>';
+
+        try {
+            const response = await fetch(`/api/pokemon/search/${encodeURIComponent(name)}`);
+            const data = await response.json();
+
+            if (data.success && data.cards && data.cards.length > 0) {
+                this.statusText.textContent = `Found ${data.cards.length} ${name} cards`;
+                this.displaySearchResults(data.cards);
+            } else {
+                this.statusText.textContent = `No cards found for ${name}`;
+                this.searchResults.innerHTML = '<p style="text-align: center;">No cards found. Try a different Pokemon.</p>';
+            }
+        } catch (error) {
+            console.error('Search error:', error);
+            this.statusText.textContent = 'Search failed';
+        }
+    }
+
     async startCamera() {
         try {
             const useBackCamera = document.getElementById('use-back-camera')?.checked ?? true;
@@ -83,13 +174,12 @@ class CardScanner {
             this.placeholder.style.display = 'none';
             this.video.play();
 
-            this.statusText.textContent = 'Position the Pokemon card so it fills most of the frame';
+            this.statusText.textContent = 'Position card and capture, or use Browse mode to find visually';
 
             document.getElementById('btn-start-camera').disabled = true;
             document.getElementById('btn-capture').disabled = false;
             document.getElementById('btn-stop-camera').disabled = false;
 
-            // Setup canvas
             this.video.onloadedmetadata = () => {
                 this.canvas.width = this.video.videoWidth;
                 this.canvas.height = this.video.videoHeight;
@@ -97,7 +187,7 @@ class CardScanner {
 
         } catch (error) {
             console.error('Camera error:', error);
-            this.statusText.textContent = 'Camera access denied. Please allow camera permissions.';
+            this.statusText.textContent = 'Camera access denied. Use Browse or Search mode instead.';
         }
     }
 
@@ -122,22 +212,17 @@ class CardScanner {
 
         this.isScanning = true;
         this.container.classList.add('scanning');
-        this.statusText.textContent = 'Scanning card... (this may take a few seconds)';
+        this.statusText.textContent = 'Scanning... (if this fails, try Browse mode)';
         document.getElementById('btn-capture').disabled = true;
 
-        // Capture full frame
         const ctx = this.canvas.getContext('2d');
         this.canvas.width = this.video.videoWidth;
         this.canvas.height = this.video.videoHeight;
         ctx.drawImage(this.video, 0, 0);
 
         try {
-            // Convert to base64
             const imageData = this.canvas.toDataURL('image/png');
 
-            this.statusText.textContent = 'Analyzing card with OCR...';
-
-            // Send to backend OCR API
             const response = await fetch('/api/ocr', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -146,34 +231,25 @@ class CardScanner {
 
             const result = await response.json();
 
-            if (result.success) {
+            if (result.success && result.card_name && result.card_name.length >= 2) {
                 const cardName = result.card_name;
                 const cardNumber = result.card_number;
 
-                console.log('OCR Result:', result.raw_text);
-                console.log('Detected Name:', cardName);
-                console.log('Detected Number:', cardNumber);
+                let statusMsg = `Found: "${cardName}"`;
+                if (cardNumber) statusMsg += ` #${cardNumber}`;
+                this.statusText.textContent = statusMsg + ' - Searching...';
 
-                if (cardName && cardName.length >= 2) {
-                    let statusMsg = `Found: "${cardName}"`;
-                    if (cardNumber) {
-                        statusMsg += ` #${cardNumber}`;
-                    }
-                    this.statusText.textContent = statusMsg + ' - Searching...';
-
-                    // Search with both name and number
-                    await this.searchCardsWithNumber(cardName, cardNumber);
-                } else {
-                    this.statusText.textContent = 'Could not read card. Try better lighting or use manual search.';
-                    this.showRawOCR(result.raw_text);
-                }
+                await this.searchCardsWithNumber(cardName, cardNumber);
             } else {
-                this.statusText.textContent = `Scan failed: ${result.error}. Try manual search.`;
+                // OCR failed - suggest browse mode
+                this.statusText.textContent = 'Could not read card. Try the Browse tab to find it visually!';
+                this.showBrowseSuggestion();
             }
 
         } catch (error) {
             console.error('Scan error:', error);
-            this.statusText.textContent = 'Error scanning. Please try again.';
+            this.statusText.textContent = 'Scan failed. Try the Browse tab instead!';
+            this.showBrowseSuggestion();
         }
 
         this.container.classList.remove('scanning');
@@ -181,18 +257,18 @@ class CardScanner {
         document.getElementById('btn-capture').disabled = false;
     }
 
-    showRawOCR(text) {
-        // Show raw OCR text so user can manually search
-        if (text) {
-            this.searchResults.innerHTML = `
-                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-                    <p style="color: #666; margin-bottom: 10px;">Raw text detected:</p>
-                    <pre style="white-space: pre-wrap; font-size: 12px; color: #333;">${text}</pre>
-                    <p style="color: #666; margin-top: 10px;">Try typing the Pokemon name in the Search tab.</p>
-                </div>
-            `;
-            this.scanResult.style.display = 'block';
-        }
+    showBrowseSuggestion() {
+        this.searchResults.innerHTML = `
+            <div style="background: #e3f2fd; padding: 20px; border-radius: 10px; text-align: center;">
+                <p style="font-size: 2em; margin-bottom: 10px;">🔍</p>
+                <p style="font-weight: bold; margin-bottom: 10px;">Can't read the card?</p>
+                <p style="margin-bottom: 15px;">Use the <strong>Browse</strong> tab to find your Pokemon visually!</p>
+                <button onclick="switchMode('browse')" class="pokedex-btn btn-primary">
+                    Browse Pokemon
+                </button>
+            </div>
+        `;
+        this.scanResult.style.display = 'block';
     }
 
     async searchCardsWithNumber(name, number) {
@@ -205,7 +281,6 @@ class CardScanner {
             if (data.success && data.cards && data.cards.length > 0) {
                 let cards = data.cards;
 
-                // If we have a number, try to find exact match
                 if (number) {
                     const exactMatch = cards.find(c => {
                         const cardNum = String(c.number).replace(/^0+/, '');
@@ -214,7 +289,6 @@ class CardScanner {
                     });
 
                     if (exactMatch) {
-                        // Put exact match first
                         cards = [exactMatch, ...cards.filter(c => c.id !== exactMatch.id)];
                         this.statusText.textContent = `Exact match found: ${exactMatch.name} #${exactMatch.number}`;
                     }
@@ -222,9 +296,8 @@ class CardScanner {
 
                 this.displaySearchResults(cards);
             } else {
-                this.statusText.textContent = `No cards found for "${name}"`;
-                this.searchResults.innerHTML = '<p style="text-align:center;">No results. Try manual search.</p>';
-                this.scanResult.style.display = 'block';
+                this.statusText.textContent = `No cards found for "${name}". Try Browse mode!`;
+                this.showBrowseSuggestion();
             }
 
         } catch (error) {
@@ -239,6 +312,7 @@ class CardScanner {
             this.statusText.textContent = 'Enter at least 2 characters';
             return;
         }
+        this.statusText.textContent = `Searching for "${query}"...`;
         await this.searchCardsWithNumber(query, '');
     }
 
@@ -351,7 +425,6 @@ class CardScanner {
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', () => {
-    // Initialize scanner
     if (document.getElementById('video-feed')) {
         window.cardScanner = new CardScanner();
     }

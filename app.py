@@ -598,6 +598,77 @@ def extract_card_number(text):
     return ''
 
 
+# Popular Pokemon list with National Dex numbers for browsing
+POPULAR_POKEMON = [
+    # Gen 1 Starters & Evolutions
+    (1, "Bulbasaur"), (2, "Ivysaur"), (3, "Venusaur"),
+    (4, "Charmander"), (5, "Charmeleon"), (6, "Charizard"),
+    (7, "Squirtle"), (8, "Wartortle"), (9, "Blastoise"),
+    # Gen 1 Popular
+    (25, "Pikachu"), (26, "Raichu"), (39, "Jigglypuff"),
+    (52, "Meowth"), (54, "Psyduck"), (55, "Golduck"),
+    (63, "Abra"), (64, "Kadabra"), (65, "Alakazam"),
+    (66, "Machop"), (67, "Machoke"), (68, "Machamp"),
+    (74, "Geodude"), (75, "Graveler"), (76, "Golem"),
+    (92, "Gastly"), (93, "Haunter"), (94, "Gengar"),
+    (129, "Magikarp"), (130, "Gyarados"),
+    (131, "Lapras"), (133, "Eevee"), (134, "Vaporeon"),
+    (135, "Jolteon"), (136, "Flareon"), (143, "Snorlax"),
+    (144, "Articuno"), (145, "Zapdos"), (146, "Moltres"),
+    (147, "Dratini"), (148, "Dragonair"), (149, "Dragonite"),
+    (150, "Mewtwo"), (151, "Mew"),
+    # Gen 2 Starters & Popular
+    (152, "Chikorita"), (155, "Cyndaquil"), (158, "Totodile"),
+    (172, "Pichu"), (175, "Togepi"), (176, "Togetic"),
+    (196, "Espeon"), (197, "Umbreon"), (212, "Scizor"),
+    (243, "Raikou"), (244, "Entei"), (245, "Suicune"),
+    (248, "Tyranitar"), (249, "Lugia"), (250, "Ho-Oh"), (251, "Celebi"),
+    # Gen 3 Starters & Popular
+    (252, "Treecko"), (255, "Torchic"), (258, "Mudkip"),
+    (282, "Gardevoir"), (306, "Aggron"), (330, "Flygon"),
+    (359, "Absol"), (373, "Salamence"), (376, "Metagross"),
+    (380, "Latias"), (381, "Latios"), (382, "Kyogre"),
+    (383, "Groudon"), (384, "Rayquaza"), (385, "Jirachi"),
+    # Gen 4 Popular
+    (387, "Turtwig"), (390, "Chimchar"), (393, "Piplup"),
+    (403, "Shinx"), (405, "Luxray"), (445, "Garchomp"),
+    (448, "Lucario"), (470, "Leafeon"), (471, "Glaceon"),
+    (483, "Dialga"), (484, "Palkia"), (487, "Giratina"),
+    (491, "Darkrai"), (492, "Shaymin"), (493, "Arceus"),
+    # Gen 5-9 Popular
+    (495, "Snivy"), (498, "Tepig"), (501, "Oshawott"),
+    (571, "Zoroark"), (609, "Chandelure"), (635, "Hydreigon"),
+    (643, "Reshiram"), (644, "Zekrom"), (646, "Kyurem"),
+    (700, "Sylveon"), (716, "Xerneas"), (717, "Yveltal"),
+    (724, "Decidueye"), (727, "Incineroar"), (730, "Primarina"),
+    (778, "Mimikyu"), (800, "Necrozma"),
+    (810, "Grookey"), (813, "Scorbunny"), (816, "Sobble"),
+    (888, "Zacian"), (889, "Zamazenta"), (890, "Eternatus"),
+    (906, "Sprigatito"), (909, "Fuecoco"), (912, "Quaxly"),
+]
+
+
+@app.route('/api/pokemon/browse')
+def api_pokemon_browse():
+    """Get list of popular Pokemon with sprites for browsing."""
+    pokemon_list = []
+    for dex_num, name in POPULAR_POKEMON:
+        pokemon_list.append({
+            'dex': dex_num,
+            'name': name,
+            'sprite': f'https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/{dex_num}.png'
+        })
+    return jsonify({'success': True, 'pokemon': pokemon_list})
+
+
+@app.route('/api/pokemon/search/<name>')
+def api_pokemon_search(name):
+    """Search for all cards of a specific Pokemon."""
+    raw_cards = card_lookup.search_fuzzy(name, limit=20)
+    cards = [card_lookup.format_card_data(c) for c in raw_cards]
+    return jsonify({'success': True, 'cards': cards})
+
+
 @app.route('/api/card/<card_id>')
 def api_card(card_id):
     """Get card details API."""

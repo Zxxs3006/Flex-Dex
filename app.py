@@ -1500,7 +1500,14 @@ def get_or_create_card(api_card_id):
     card = Card.query.filter_by(card_id=api_card_id).first()
 
     if not card:
+        # Try TCGdex first
         raw_card = card_lookup.get_card_by_id(api_card_id)
+
+        # If not found in TCGdex, try pokemontcg.io
+        if not raw_card:
+            raw_card = card_lookup.get_card_pokemontcg(api_card_id)
+            if raw_card:
+                raw_card['_source'] = 'pokemontcg'
 
         if not raw_card:
             return None
@@ -1511,6 +1518,17 @@ def get_or_create_card(api_card_id):
         national_dex = None
         if raw_card.get('nationalPokedexNumbers'):
             national_dex = raw_card['nationalPokedexNumbers'][0]
+        elif raw_card.get('dexId'):
+            national_dex = raw_card['dexId'][0] if raw_card['dexId'] else None
+
+        # Handle HP that might be a string or int
+        hp_value = formatted.get('hp', '')
+        if isinstance(hp_value, str) and hp_value.isdigit():
+            hp_value = int(hp_value)
+        elif isinstance(hp_value, int):
+            hp_value = hp_value
+        else:
+            hp_value = None
 
         card = Card(
             card_id=formatted['id'],
@@ -1519,7 +1537,7 @@ def get_or_create_card(api_card_id):
             set_id=formatted['set']['id'],
             number=formatted['number'],
             rarity=formatted.get('rarity'),
-            hp=int(formatted['hp']) if formatted.get('hp') and formatted['hp'].isdigit() else None,
+            hp=hp_value,
             types=json.dumps(formatted.get('types', [])),
             artist=formatted.get('artist'),
             image_small=formatted['images']['small'],

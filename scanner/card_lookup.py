@@ -66,9 +66,10 @@ class CardLookup:
 
         try:
             headers = {'X-Api-Key': self.api_key} if self.api_key else {}
+            # Use wildcard search for better matching
             response = self.session.get(
                 f'{self.POKEMONTCG_URL}/cards',
-                params={'q': f'name:"{name}"', 'pageSize': limit},
+                params={'q': f'name:{name}*', 'pageSize': limit},
                 headers=headers,
                 timeout=20
             )

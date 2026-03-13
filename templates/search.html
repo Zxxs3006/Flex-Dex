@@ -90,10 +90,10 @@
         </div>
 
         <!-- Not What You Were Looking For Button -->
-        {% if not show_all and cards|length >= 5 %}
+        {% if not show_all %}
         <div class="more-results-section">
             <p>Can't find your card?</p>
-            <a href="{{ url_for('search', q=query, number=number, set=set_name, use_pokemontcg=use_pokemontcg, show_all=1) }}"
+            <a href="{{ url_for('search', q=query, number=number, set=set_name, use_pokemontcg='1' if use_pokemontcg else '', show_all='1') }}"
                class="pokedex-btn btn-secondary">
                 Not What You Were Looking For? Show All Results
             </a>

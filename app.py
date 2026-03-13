@@ -746,51 +746,20 @@ def api_card(card_id):
 @app.route('/api/binder/add', methods=['POST'])
 @login_required
 def api_add_to_binder():
-    """Add card to binder API."""
+    """Add card to binder API - requires verification first."""
     data = request.get_json()
 
     if not data or 'card_id' not in data:
         return jsonify({'success': False, 'error': 'No card specified'})
 
-    card = get_or_create_card(data['card_id'])
+    card_id = data['card_id']
 
-    if not card:
-        return jsonify({'success': False, 'error': 'Card not found'})
-
-    old_total = current_user.total_cards
-    old_rank = current_user.get_rank()
-
-    binder_id = data.get('binder_id')
-
-    user_card = UserCard.query.filter_by(
-        user_id=current_user.id,
-        card_id=card.id,
-        binder_id=binder_id
-    ).first()
-
-    if user_card:
-        user_card.quantity += 1
-    else:
-        user_card = UserCard(
-            user_id=current_user.id,
-            card_id=card.id,
-            binder_id=binder_id
-        )
-        db.session.add(user_card)
-
-    db.session.commit()
-
-    # Update stats and check achievements
-    current_user.update_stats()
-    rank_up = check_achievements(current_user, old_total)
-    new_rank = current_user.get_rank()
-
+    # Redirect to verification - cards must be verified before adding
     return jsonify({
-        'success': True,
-        'message': 'Card added to binder',
-        'total_cards': current_user.total_cards,
-        'rank': new_rank,
-        'rank_up': rank_up
+        'success': False,
+        'requires_verification': True,
+        'redirect': url_for('verify_card', card_id=card_id),
+        'message': 'Please verify your card first'
     })
 
 

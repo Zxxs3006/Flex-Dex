@@ -401,25 +401,8 @@ class CardScanner {
             return;
         }
 
-        try {
-            const response = await fetch('/api/binder/add', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ card_id: this.selectedCardData.id })
-            });
-
-            const data = await response.json();
-
-            if (data.success) {
-                alert('Card added to your binder!');
-            } else {
-                alert(data.error || 'Failed to add card');
-            }
-
-        } catch (error) {
-            console.error('Error adding to binder:', error);
-            alert('Error adding card to binder');
-        }
+        // Redirect to verification page
+        window.location.href = `/verify/${this.selectedCardData.id}`;
     }
 }
 

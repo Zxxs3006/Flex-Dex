@@ -1,17 +1,27 @@
 {% extends "base.html" %}
 
-{% block title %}FlexDex - Show Off Your Pokémon Cards{% endblock %}
+{% block title %}FlexDex - Show Off Your Pokemon Cards{% endblock %}
 
 {% block content %}
 <div class="home-content">
+    <!-- Quick Search - At the top for easy access -->
+    <div class="quick-search">
+        <h3>Quick Search</h3>
+        <form action="{{ url_for('search') }}" method="GET" class="search-form">
+            <input type="text" name="q" placeholder="Search for a Pokemon card..."
+                   class="search-input">
+            <button type="submit" class="pokedex-btn btn-primary">Search</button>
+        </form>
+    </div>
+
     <div class="hero-section">
         <h1 class="hero-title">
             <span class="logo-flex">Flex</span><span class="logo-dex">Dex</span>
         </h1>
-        <p class="hero-subtitle">Scan. Collect. Flex. 💪</p>
+        <p class="hero-subtitle">Scan. Collect. Flex.</p>
         <p class="hero-description">
-            The ultimate Pokémon card tracker. Scan your cards, build your collection,
-            complete regional Pokédexes, and climb the ranks!
+            The ultimate Pokemon card tracker. Scan your cards, build your collection,
+            and climb the ranks!
         </p>
     </div>
 
@@ -19,7 +29,7 @@
     <div class="feature-grid">
         <div class="feature-card" onclick="window.location='{{ url_for('scanner') }}'">
             <div class="feature-icon">📷</div>
-            <h3>PokéLens</h3>
+            <h3>PokeLens</h3>
             <p>Scan cards with your camera</p>
         </div>
         <div class="feature-card" onclick="window.location='{{ url_for('leaderboard') }}'">
@@ -29,7 +39,7 @@
         </div>
         <div class="feature-card" onclick="{% if current_user.is_authenticated %}window.location='{{ url_for('pokedex') }}'{% else %}window.location='{{ url_for('register') }}'{% endif %}">
             <div class="feature-icon">📚</div>
-            <h3>Pokédex</h3>
+            <h3>Pokedex</h3>
             <p>Complete all 9 regions</p>
         </div>
         <div class="feature-card" onclick="{% if current_user.is_authenticated %}window.location='{{ url_for('analytics') }}'{% else %}window.location='{{ url_for('register') }}'{% endif %}">
@@ -39,24 +49,10 @@
         </div>
     </div>
 
-    <!-- Rank Preview -->
-    <div class="rank-preview">
-        <h3>🎖️ Trainer Ranks</h3>
-        <div class="rank-ladder">
-            {% for rank in RANKS %}
-            <div class="rank-badge" style="background: {{ rank.color }}20; border-color: {{ rank.color }};">
-                <span class="rank-icon">{{ rank.icon }}</span>
-                <span class="rank-name">{{ rank.name }}</span>
-                <span class="rank-req">{{ rank.min_cards }}+ cards</span>
-            </div>
-            {% endfor %}
-        </div>
-    </div>
-
     <!-- Top Trainers -->
     {% if top_trainers %}
     <div class="top-trainers">
-        <h3>🏅 Top Trainers</h3>
+        <h3>Top Trainers</h3>
         <div class="trainer-list">
             {% for trainer in top_trainers %}
             <div class="trainer-card" onclick="window.location='{{ url_for('profile', username=trainer.username) }}'">
@@ -69,16 +65,6 @@
         </div>
     </div>
     {% endif %}
-
-    <!-- Quick Search -->
-    <div class="quick-search">
-        <h3>🔍 Quick Search</h3>
-        <form action="{{ url_for('search') }}" method="GET" class="search-form">
-            <input type="text" name="q" placeholder="Search for a Pokémon card..."
-                   class="search-input">
-            <button type="submit" class="pokedex-btn btn-primary">Search</button>
-        </form>
-    </div>
 
     {% if not current_user.is_authenticated %}
     <div class="cta-section">
@@ -101,7 +87,7 @@
 {% endblock %}
 
 {% block buttons %}
-<a href="{{ url_for('scanner') }}" class="pokedex-btn btn-primary">Open PokéLens</a>
+<a href="{{ url_for('scanner') }}" class="pokedex-btn btn-primary">Open PokeLens</a>
 {% if current_user.is_authenticated %}
 <a href="{{ url_for('binder') }}" class="pokedex-btn btn-secondary">My Binder</a>
 {% else %}

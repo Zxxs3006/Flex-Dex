@@ -64,22 +64,24 @@ class CardLookup:
         if not name:
             return []
 
-        try:
-            headers = {'X-Api-Key': self.api_key} if self.api_key else {}
-            clean_name = ''.join(c for c in name if c.isalnum() or c.isspace())
-            # Simple name search without wildcards
-            response = self.session.get(
-                f'{self.POKEMONTCG_URL}/cards',
-                params={'q': f'name:{clean_name}', 'pageSize': limit},
-                headers=headers,
-                timeout=20
-            )
-            response.raise_for_status()
-            data = response.json()
-            return data.get('data', [])
-        except requests.RequestException as e:
-            print(f"PokemonTCG API request failed: {e}")
-            return []
+        # Try up to 2 times with longer timeout
+        for attempt in range(2):
+            try:
+                headers = {'X-Api-Key': self.api_key} if self.api_key else {}
+                clean_name = ''.join(c for c in name if c.isalnum() or c.isspace())
+                response = self.session.get(
+                    f'{self.POKEMONTCG_URL}/cards',
+                    params={'q': f'name:{clean_name}', 'pageSize': limit},
+                    headers=headers,
+                    timeout=30
+                )
+                response.raise_for_status()
+                data = response.json()
+                return data.get('data', [])
+            except requests.RequestException as e:
+                print(f"PokemonTCG API attempt {attempt + 1} failed: {e}")
+                if attempt == 1:
+                    return []
 
     def get_card_pokemontcg(self, card_id: str) -> Optional[Dict[str, Any]]:
         """Get card from pokemontcg.io by ID."""

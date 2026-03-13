@@ -86,12 +86,15 @@ def search():
     # Determine limit based on show_all parameter
     limit = 100 if show_all else 30
 
-    # Search for cards - use pokemontcg.io directly if requested
+    # Search for cards - use pokemontcg.io directly if requested (with TCGdex fallback)
     if use_pokemontcg:
         raw_cards = card_lookup.search_pokemontcg(query, limit=limit)
         # Mark as pokemontcg source for proper formatting
         for card in raw_cards:
             card['_source'] = 'pokemontcg'
+        # If pokemontcg.io fails or returns nothing, fallback to TCGdex
+        if not raw_cards:
+            raw_cards = card_lookup.search_fuzzy(query, limit=limit)
     else:
         raw_cards = card_lookup.search_fuzzy(query, limit=limit)
 

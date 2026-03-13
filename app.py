@@ -9,7 +9,6 @@ from config import Config
 from database import db, init_db, User, Card, Binder, UserCard, Achievement, RANKS, REGIONAL_DEXES
 from database.models import Party, PartyCard, Battle, BattleTurn, BattleStats, TYPE_CHART
 from scanner import CardLookup
-from scanner.image_matcher import image_matcher
 from datetime import datetime
 import json
 import os
@@ -470,45 +469,46 @@ def verify_card(card_id):
 @app.route('/api/verify_card', methods=['POST'])
 @login_required
 def api_verify_card():
-    """API endpoint to verify card ownership via image matching."""
-    card_id = request.form.get('card_id')
-    reference_url = request.form.get('reference_url')
+    """API endpoint to add verified card to binder (verification done client-side)."""
+    data = request.get_json()
 
-    if 'image' not in request.files:
-        return jsonify({'match': False, 'error': 'No image provided', 'percentage': 0})
+    if not data:
+        return jsonify({'success': False, 'error': 'No data provided'})
 
-    image_file = request.files['image']
-    image_bytes = image_file.read()
+    card_id = data.get('card_id')
+    verified = data.get('verified', False)
+    score = data.get('score', 0)
 
-    if not image_bytes:
-        return jsonify({'match': False, 'error': 'Empty image', 'percentage': 0})
+    if not card_id:
+        return jsonify({'success': False, 'error': 'No card ID provided'})
 
-    # Verify the image matches
-    result = image_matcher.verify_card(reference_url, image_bytes)
+    if not verified or score < 55:
+        return jsonify({'success': False, 'error': 'Card not verified'})
 
-    # If verified, add to binder
-    if result.get('match'):
-        card = get_or_create_card(card_id)
+    # Add verified card to binder
+    card = get_or_create_card(card_id)
 
-        if card:
-            old_total = current_user.total_cards
+    if not card:
+        return jsonify({'success': False, 'error': 'Card not found'})
 
-            user_card = UserCard.query.filter_by(user_id=current_user.id, card_id=card.id).first()
+    old_total = current_user.total_cards
 
-            if user_card:
-                user_card.quantity += 1
-                user_card.verified = True
-            else:
-                user_card = UserCard(user_id=current_user.id, card_id=card.id, verified=True)
-                db.session.add(user_card)
+    user_card = UserCard.query.filter_by(user_id=current_user.id, card_id=card.id).first()
 
-            db.session.commit()
+    if user_card:
+        user_card.quantity += 1
+        user_card.verified = True
+    else:
+        user_card = UserCard(user_id=current_user.id, card_id=card.id, verified=True)
+        db.session.add(user_card)
 
-            # Update user stats and check for rank up
-            current_user.update_stats()
-            check_achievements(current_user, old_total)
+    db.session.commit()
 
-    return jsonify(result)
+    # Update user stats and check for rank up
+    current_user.update_stats()
+    check_achievements(current_user, old_total)
+
+    return jsonify({'success': True, 'message': f'{card.name} added to your binder!'})
 
 
 # ============== API Routes ==============

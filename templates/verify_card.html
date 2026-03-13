@@ -72,7 +72,7 @@
         object-fit: cover;
     }
 
-    #verify-canvas {
+    #verify-canvas, #ref-canvas {
         display: none;
     }
 
@@ -209,7 +209,7 @@
         <div class="verify-section">
             <h3>Card to Match</h3>
             <div class="reference-card">
-                <img src="{{ card.images.large or card.images.small }}" alt="{{ card.name }}" id="reference-image">
+                <img src="{{ card.images.large or card.images.small }}" alt="{{ card.name }}" id="reference-image" crossorigin="anonymous">
             </div>
             <p style="margin-top: 10px; color: #666;">{{ card.name }} - {{ card.set.name }}</p>
         </div>
@@ -225,6 +225,7 @@
                 <img id="captured-image" alt="Captured photo">
             </div>
             <canvas id="verify-canvas"></canvas>
+            <canvas id="ref-canvas"></canvas>
             <div class="verify-actions">
                 <button id="btn-start" class="pokedex-btn btn-primary">Start Camera</button>
                 <button id="btn-capture" class="pokedex-btn btn-success" style="display: none;">Take Photo</button>
@@ -251,7 +252,6 @@
 
 <!-- Hidden form data -->
 <input type="hidden" id="card-id" value="{{ card.id }}">
-<input type="hidden" id="reference-url" value="{{ card.images.large or card.images.small }}">
 {% endblock %}
 
 {% block buttons %}
@@ -262,9 +262,10 @@
 <script>
 const video = document.getElementById('verify-video');
 const canvas = document.getElementById('verify-canvas');
+const refCanvas = document.getElementById('ref-canvas');
 const capturedImg = document.getElementById('captured-image');
+const referenceImg = document.getElementById('reference-image');
 const placeholder = document.getElementById('camera-placeholder');
-const cameraContainer = document.getElementById('camera-container');
 
 const btnStart = document.getElementById('btn-start');
 const btnCapture = document.getElementById('btn-capture');
@@ -279,10 +280,145 @@ const resultActions = document.getElementById('result-actions');
 const loadingOverlay = document.getElementById('loading-overlay');
 
 const cardId = document.getElementById('card-id').value;
-const referenceUrl = document.getElementById('reference-url').value;
+const SIMILARITY_THRESHOLD = 0.55; // 55% match required
 
 let stream = null;
-let capturedBlob = null;
+
+// Image comparison functions
+function getImageData(img, size = 32) {
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, size, size);
+    return ctx.getImageData(0, 0, size, size).data;
+}
+
+function getColorHistogram(imageData, bins = 8) {
+    const histogram = new Array(bins * 3).fill(0);
+    const binSize = 256 / bins;
+    const pixelCount = imageData.length / 4;
+
+    for (let i = 0; i < imageData.length; i += 4) {
+        const r = imageData[i];
+        const g = imageData[i + 1];
+        const b = imageData[i + 2];
+
+        histogram[Math.floor(r / binSize)] += 1;
+        histogram[bins + Math.floor(g / binSize)] += 1;
+        histogram[bins * 2 + Math.floor(b / binSize)] += 1;
+    }
+
+    // Normalize
+    const total = pixelCount * 3;
+    return histogram.map(h => h / total);
+}
+
+function getAverageHash(imageData, size = 32) {
+    // Convert to grayscale and compute average
+    const gray = [];
+    for (let i = 0; i < imageData.length; i += 4) {
+        gray.push((imageData[i] + imageData[i + 1] + imageData[i + 2]) / 3);
+    }
+
+    const avg = gray.reduce((a, b) => a + b, 0) / gray.length;
+    return gray.map(g => g > avg ? 1 : 0);
+}
+
+function getBlockColors(img, blocks = 4) {
+    const canvas = document.createElement('canvas');
+    const size = blocks * 10;
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, 0, 0, size, size);
+
+    const blockColors = [];
+    const blockSize = 10;
+
+    for (let by = 0; by < blocks; by++) {
+        for (let bx = 0; bx < blocks; bx++) {
+            const imgData = ctx.getImageData(bx * blockSize, by * blockSize, blockSize, blockSize).data;
+            let r = 0, g = 0, b = 0;
+            const pixels = imgData.length / 4;
+
+            for (let i = 0; i < imgData.length; i += 4) {
+                r += imgData[i];
+                g += imgData[i + 1];
+                b += imgData[i + 2];
+            }
+
+            blockColors.push(r / pixels / 255, g / pixels / 255, b / pixels / 255);
+        }
+    }
+
+    return blockColors;
+}
+
+function cosineSimilarity(vec1, vec2) {
+    if (vec1.length !== vec2.length) return 0;
+
+    let dot = 0, mag1 = 0, mag2 = 0;
+    for (let i = 0; i < vec1.length; i++) {
+        dot += vec1[i] * vec2[i];
+        mag1 += vec1[i] * vec1[i];
+        mag2 += vec2[i] * vec2[i];
+    }
+
+    mag1 = Math.sqrt(mag1);
+    mag2 = Math.sqrt(mag2);
+
+    if (mag1 === 0 || mag2 === 0) return 0;
+    return dot / (mag1 * mag2);
+}
+
+function hammingSimilarity(hash1, hash2) {
+    if (hash1.length !== hash2.length) return 0;
+    let matches = 0;
+    for (let i = 0; i < hash1.length; i++) {
+        if (hash1[i] === hash2[i]) matches++;
+    }
+    return matches / hash1.length;
+}
+
+function compareImages(refImg, userImg) {
+    // Get image data
+    const refData = getImageData(refImg, 64);
+    const userData = getImageData(userImg, 64);
+
+    // Method 1: Color histogram
+    const refHist = getColorHistogram(refData);
+    const userHist = getColorHistogram(userData);
+    const colorScore = cosineSimilarity(refHist, userHist);
+
+    // Method 2: Average hash
+    const refHash = getAverageHash(refData);
+    const userHash = getAverageHash(userData);
+    const hashScore = hammingSimilarity(refHash, userHash);
+
+    // Method 3: Block colors
+    const refBlocks = getBlockColors(refImg);
+    const userBlocks = getBlockColors(userImg);
+    const blockScore = cosineSimilarity(refBlocks, userBlocks);
+
+    // Weighted combination
+    const finalScore = (
+        colorScore * 0.35 +
+        hashScore * 0.25 +
+        blockScore * 0.40
+    );
+
+    return {
+        score: finalScore,
+        percentage: Math.round(finalScore * 100),
+        match: finalScore >= SIMILARITY_THRESHOLD,
+        details: {
+            color: Math.round(colorScore * 100),
+            hash: Math.round(hashScore * 100),
+            block: Math.round(blockScore * 100)
+        }
+    };
+}
 
 // Start camera
 btnStart.addEventListener('click', async () => {
@@ -308,26 +444,22 @@ btnCapture.addEventListener('click', () => {
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0);
 
-    canvas.toBlob((blob) => {
-        capturedBlob = blob;
-        capturedImg.src = URL.createObjectURL(blob);
-        capturedImg.style.display = 'block';
-        video.style.display = 'none';
+    capturedImg.src = canvas.toDataURL('image/jpeg', 0.9);
+    capturedImg.style.display = 'block';
+    video.style.display = 'none';
 
-        // Stop camera
-        if (stream) {
-            stream.getTracks().forEach(track => track.stop());
-        }
+    // Stop camera
+    if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+    }
 
-        btnCapture.style.display = 'none';
-        btnRetake.style.display = 'inline-block';
-        btnVerify.style.display = 'inline-block';
-    }, 'image/jpeg', 0.9);
+    btnCapture.style.display = 'none';
+    btnRetake.style.display = 'inline-block';
+    btnVerify.style.display = 'inline-block';
 });
 
 // Retake photo
 btnRetake.addEventListener('click', async () => {
-    capturedBlob = null;
     capturedImg.style.display = 'none';
     resultBox.style.display = 'none';
     resultBox.className = 'result-box';
@@ -349,50 +481,59 @@ btnRetake.addEventListener('click', async () => {
 
 // Verify card
 btnVerify.addEventListener('click', async () => {
-    if (!capturedBlob) {
-        alert('Please take a photo first.');
-        return;
-    }
-
     loadingOverlay.style.display = 'flex';
 
-    const formData = new FormData();
-    formData.append('image', capturedBlob, 'card.jpg');
-    formData.append('card_id', cardId);
-    formData.append('reference_url', referenceUrl);
+    // Small delay to show loading
+    await new Promise(resolve => setTimeout(resolve, 500));
 
-    try {
-        const response = await fetch('/api/verify_card', {
-            method: 'POST',
-            body: formData
-        });
+    // Compare images
+    const result = compareImages(referenceImg, capturedImg);
 
-        const result = await response.json();
-        loadingOverlay.style.display = 'none';
+    loadingOverlay.style.display = 'none';
+    resultBox.style.display = 'block';
+    matchScore.textContent = result.percentage + '%';
 
-        resultBox.style.display = 'block';
-        matchScore.textContent = result.percentage + '%';
+    if (result.match) {
+        // Send to server to add card
+        try {
+            const response = await fetch('/api/verify_card', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    card_id: cardId,
+                    score: result.percentage,
+                    verified: true
+                })
+            });
 
-        if (result.match) {
-            resultBox.className = 'result-box success';
-            resultTitle.textContent = 'Card Verified!';
-            resultMessage.textContent = 'Your card matches! It has been added to your binder.';
-            resultActions.innerHTML = `
-                <a href="{{ url_for('binder') }}" class="pokedex-btn btn-primary" style="text-decoration: none;">View Binder</a>
-                <a href="{{ url_for('scanner') }}" class="pokedex-btn btn-secondary" style="text-decoration: none; margin-left: 10px;">Add Another</a>
-            `;
-            btnRetake.style.display = 'none';
-            btnVerify.style.display = 'none';
-        } else {
+            const serverResult = await response.json();
+
+            if (serverResult.success) {
+                resultBox.className = 'result-box success';
+                resultTitle.textContent = 'Card Verified!';
+                resultMessage.textContent = 'Your card matches! It has been added to your binder.';
+                resultActions.innerHTML = `
+                    <a href="{{ url_for('binder') }}" class="pokedex-btn btn-primary" style="text-decoration: none;">View Binder</a>
+                    <a href="{{ url_for('scanner') }}" class="pokedex-btn btn-secondary" style="text-decoration: none; margin-left: 10px;">Add Another</a>
+                `;
+                btnRetake.style.display = 'none';
+                btnVerify.style.display = 'none';
+            } else {
+                resultBox.className = 'result-box failure';
+                resultTitle.textContent = 'Error';
+                resultMessage.textContent = serverResult.error || 'Failed to add card. Please try again.';
+            }
+        } catch (err) {
             resultBox.className = 'result-box failure';
-            resultTitle.textContent = 'Verification Failed';
-            resultMessage.textContent = 'The photo doesn\'t match the card well enough. Try again with better lighting or angle.';
-            resultActions.innerHTML = '';
+            resultTitle.textContent = 'Error';
+            resultMessage.textContent = 'Failed to connect to server. Please try again.';
+            console.error(err);
         }
-    } catch (err) {
-        loadingOverlay.style.display = 'none';
-        alert('Verification failed. Please try again.');
-        console.error(err);
+    } else {
+        resultBox.className = 'result-box failure';
+        resultTitle.textContent = 'Verification Failed';
+        resultMessage.textContent = `The photo doesn't match well enough (${result.percentage}% < 55% required). Try again with better lighting or angle.`;
+        resultActions.innerHTML = '';
     }
 });
 

@@ -1,4 +1,4 @@
-// Pokédex Card Scanner - Web Version with Camera & Tesseract.js OCR
+// FlexDex Card Scanner - Smart OCR with Auto-Crop
 
 let tesseractWorker = null;
 let ocrReady = false;
@@ -20,7 +20,7 @@ async function initOCR() {
         });
 
         ocrReady = true;
-        statusEl.textContent = 'OCR ready! You can now scan cards.';
+        statusEl.textContent = 'OCR ready! Position your card in the frame.';
         statusEl.style.background = '#d4edda';
 
         setTimeout(() => {
@@ -41,6 +41,44 @@ function switchMode(mode) {
 
     document.querySelector(`.mode-tab[onclick="switchMode('${mode}')"]`).classList.add('active');
     document.getElementById(`${mode}-mode`).classList.add('active');
+}
+
+// Image preprocessing for better OCR
+function preprocessImage(canvas) {
+    const ctx = canvas.getContext('2d');
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+
+    // Convert to grayscale and increase contrast
+    for (let i = 0; i < data.length; i += 4) {
+        // Grayscale
+        const avg = (data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114);
+
+        // Increase contrast
+        let contrast = 1.5;
+        let newVal = ((avg - 128) * contrast) + 128;
+        newVal = Math.max(0, Math.min(255, newVal));
+
+        // Threshold for cleaner text
+        newVal = newVal > 140 ? 255 : 0;
+
+        data[i] = newVal;
+        data[i + 1] = newVal;
+        data[i + 2] = newVal;
+    }
+
+    ctx.putImageData(imageData, 0, 0);
+    return canvas;
+}
+
+// Crop specific region from canvas
+function cropRegion(sourceCanvas, x, y, width, height) {
+    const croppedCanvas = document.createElement('canvas');
+    croppedCanvas.width = width;
+    croppedCanvas.height = height;
+    const ctx = croppedCanvas.getContext('2d');
+    ctx.drawImage(sourceCanvas, x, y, width, height, 0, 0, width, height);
+    return croppedCanvas;
 }
 
 class CardScanner {
@@ -107,7 +145,7 @@ class CardScanner {
             this.placeholder.style.display = 'none';
             this.video.play();
 
-            this.statusText.textContent = 'Camera active - Position card and click "Capture & Scan"';
+            this.statusText.textContent = 'Position the Pokemon card so it fills most of the frame';
 
             document.getElementById('btn-start-camera').disabled = true;
             document.getElementById('btn-capture').disabled = false;
@@ -151,50 +189,67 @@ class CardScanner {
 
         this.isScanning = true;
         this.container.classList.add('scanning');
-        this.statusText.textContent = 'Scanning card...';
+        this.statusText.textContent = 'Analyzing card...';
         document.getElementById('btn-capture').disabled = true;
 
-        // Capture frame
+        // Capture full frame
         const ctx = this.canvas.getContext('2d');
         this.canvas.width = this.video.videoWidth;
         this.canvas.height = this.video.videoHeight;
         ctx.drawImage(this.video, 0, 0);
 
         try {
-            // Crop to top portion where card name appears
-            const cropHeight = Math.floor(this.canvas.height * 0.2);
-            const croppedCanvas = document.createElement('canvas');
-            croppedCanvas.width = this.canvas.width;
-            croppedCanvas.height = cropHeight;
-            const croppedCtx = croppedCanvas.getContext('2d');
-            croppedCtx.drawImage(this.canvas, 0, 0, this.canvas.width, cropHeight, 0, 0, this.canvas.width, cropHeight);
+            // Pokemon card layout:
+            // - Name is at TOP (roughly top 12% of card)
+            // - Card number is at BOTTOM LEFT (bottom 8%, left 30%)
 
-            // Run OCR
-            this.statusText.textContent = 'Reading text...';
-            const result = await tesseractWorker.recognize(croppedCanvas);
-            const extractedText = result.data.text.trim();
+            const w = this.canvas.width;
+            const h = this.canvas.height;
 
-            console.log('OCR Result:', extractedText);
+            // Crop NAME region (top portion, centered)
+            const nameRegion = cropRegion(this.canvas,
+                Math.floor(w * 0.1),  // 10% from left
+                Math.floor(h * 0.02), // 2% from top
+                Math.floor(w * 0.8),  // 80% width
+                Math.floor(h * 0.12)  // 12% height
+            );
+            const processedName = preprocessImage(nameRegion);
 
-            if (extractedText) {
-                // Clean up the text - get first line, remove special chars
-                let cardName = extractedText.split('\n')[0].trim();
-                cardName = cardName.replace(/[^a-zA-Z\s\-\']/g, '').trim();
+            // Crop NUMBER region (bottom left)
+            const numberRegion = cropRegion(this.canvas,
+                Math.floor(w * 0.02), // 2% from left
+                Math.floor(h * 0.88), // 88% from top
+                Math.floor(w * 0.35), // 35% width
+                Math.floor(h * 0.10)  // 10% height
+            );
+            const processedNumber = preprocessImage(numberRegion);
 
-                // Remove common Pokemon card words
-                const removeWords = ['BASIC', 'STAGE', 'HP', 'GX', 'EX', 'VMAX', 'VSTAR'];
-                removeWords.forEach(word => {
-                    cardName = cardName.replace(new RegExp(word + '$', 'i'), '').trim();
-                });
+            this.statusText.textContent = 'Reading card name...';
 
-                if (cardName.length >= 2) {
-                    this.statusText.textContent = `Detected: "${cardName}" - Searching...`;
-                    await this.searchCards(cardName);
-                } else {
-                    this.statusText.textContent = 'Could not read card name. Try better lighting or positioning.';
+            // OCR on name region
+            const nameResult = await tesseractWorker.recognize(processedName);
+            let cardName = this.cleanCardName(nameResult.data.text);
+
+            this.statusText.textContent = 'Reading card number...';
+
+            // OCR on number region
+            const numberResult = await tesseractWorker.recognize(processedNumber);
+            let cardNumber = this.cleanCardNumber(numberResult.data.text);
+
+            console.log('Detected Name:', cardName);
+            console.log('Detected Number:', cardNumber);
+
+            if (cardName.length >= 2) {
+                let statusMsg = `Found: "${cardName}"`;
+                if (cardNumber) {
+                    statusMsg += ` #${cardNumber}`;
                 }
+                this.statusText.textContent = statusMsg + ' - Searching...';
+
+                // Search with both name and number for better accuracy
+                await this.searchCardsWithNumber(cardName, cardNumber);
             } else {
-                this.statusText.textContent = 'No text detected. Make sure the card name is visible.';
+                this.statusText.textContent = 'Could not read card. Try better lighting or use manual search.';
             }
 
         } catch (error) {
@@ -207,26 +262,71 @@ class CardScanner {
         document.getElementById('btn-capture').disabled = false;
     }
 
-    async performSearch() {
-        const query = document.getElementById('search-input').value.trim();
-        if (query.length < 2) {
-            this.statusText.textContent = 'Enter at least 2 characters';
-            return;
-        }
-        await this.searchCards(query);
+    cleanCardName(text) {
+        if (!text) return '';
+
+        // Get first line, clean it up
+        let name = text.split('\n')[0].trim();
+
+        // Remove common OCR artifacts and Pokemon card text
+        name = name.replace(/[^a-zA-Z\s\-\'éÉ]/g, '').trim();
+
+        // Remove Pokemon card keywords
+        const removeWords = ['BASIC', 'STAGE', 'HP', 'GX', 'EX', 'VMAX', 'VSTAR', 'VSS', 'VV', 'POKEMON'];
+        removeWords.forEach(word => {
+            name = name.replace(new RegExp('\\b' + word + '\\b', 'gi'), '').trim();
+        });
+
+        // Take only first 1-2 words (Pokemon names are usually 1-2 words)
+        const words = name.split(/\s+/).filter(w => w.length > 1);
+        name = words.slice(0, 2).join(' ');
+
+        return name;
     }
 
-    async searchCards(query) {
+    cleanCardNumber(text) {
+        if (!text) return '';
+
+        // Look for pattern like "123/456" or just numbers
+        const match = text.match(/(\d+)\s*[\/\\]\s*(\d+)/);
+        if (match) {
+            return match[1]; // Return just the first number
+        }
+
+        // Try to find any number
+        const numMatch = text.match(/\d+/);
+        return numMatch ? numMatch[0] : '';
+    }
+
+    async searchCardsWithNumber(name, number) {
         try {
-            const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+            let url = `/api/search?q=${encodeURIComponent(name)}`;
+
+            const response = await fetch(url);
             const data = await response.json();
 
             if (data.success && data.cards && data.cards.length > 0) {
-                this.displaySearchResults(data.cards);
-                this.statusText.textContent = `Found ${data.cards.length} card(s) for "${query}"`;
+                let cards = data.cards;
+
+                // If we have a number, try to find exact match
+                if (number) {
+                    const exactMatch = cards.find(c => {
+                        const cardNum = String(c.number).replace(/^0+/, '');
+                        const searchNum = number.replace(/^0+/, '');
+                        return cardNum === searchNum;
+                    });
+
+                    if (exactMatch) {
+                        // Put exact match first
+                        cards = [exactMatch, ...cards.filter(c => c.id !== exactMatch.id)];
+                        this.statusText.textContent = `Exact match found: ${exactMatch.name} #${exactMatch.number}`;
+                    }
+                }
+
+                this.displaySearchResults(cards);
             } else {
-                this.statusText.textContent = `No cards found for "${query}"`;
-                this.searchResults.innerHTML = '<p style="text-align:center;">No results. Try a different search.</p>';
+                this.statusText.textContent = `No cards found for "${name}"`;
+                this.searchResults.innerHTML = '<p style="text-align:center;">No results. Try manual search.</p>';
                 this.scanResult.style.display = 'block';
             }
 
@@ -236,12 +336,22 @@ class CardScanner {
         }
     }
 
+    async performSearch() {
+        const query = document.getElementById('search-input').value.trim();
+        if (query.length < 2) {
+            this.statusText.textContent = 'Enter at least 2 characters';
+            return;
+        }
+        await this.searchCardsWithNumber(query, '');
+    }
+
     displaySearchResults(cards) {
         this.searchResults.innerHTML = '';
 
-        cards.forEach(card => {
+        cards.forEach((card, index) => {
             const item = document.createElement('div');
             item.className = 'search-result-item';
+            if (index === 0) item.classList.add('best-match');
             item.onclick = () => this.selectCard(card);
 
             const priceHtml = card.prices && card.prices.market

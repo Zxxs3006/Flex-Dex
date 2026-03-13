@@ -1533,17 +1533,41 @@ def get_or_create_card(api_card_id):
     if not card:
         # Try TCGdex first
         raw_card = card_lookup.get_card_by_id(api_card_id)
+        source = 'tcgdex'
 
         # If not found in TCGdex, try pokemontcg.io
         if not raw_card:
             raw_card = card_lookup.get_card_pokemontcg(api_card_id)
             if raw_card:
                 raw_card['_source'] = 'pokemontcg'
+                source = 'pokemontcg'
 
         if not raw_card:
             return None
 
         formatted = card_lookup.format_card_data(raw_card)
+
+        # If card is from TCGdex (no prices), try to get prices from pokemontcg.io
+        price_market = formatted['prices'].get('market')
+        price_low = formatted['prices'].get('low')
+        price_mid = formatted['prices'].get('mid')
+        price_high = formatted['prices'].get('high')
+
+        if source == 'tcgdex' and not price_market:
+            # Try to find prices from pokemontcg.io by searching
+            try:
+                ptcg_results = card_lookup.search_pokemontcg(formatted['name'], limit=5)
+                for ptcg_card in ptcg_results:
+                    # Match by name and set number if possible
+                    if ptcg_card.get('number') == formatted['number']:
+                        ptcg_formatted = card_lookup.format_card_data(ptcg_card)
+                        price_market = ptcg_formatted['prices'].get('market') or price_market
+                        price_low = ptcg_formatted['prices'].get('low') or price_low
+                        price_mid = ptcg_formatted['prices'].get('mid') or price_mid
+                        price_high = ptcg_formatted['prices'].get('high') or price_high
+                        break
+            except Exception as e:
+                print(f"Failed to get prices from pokemontcg.io: {e}")
 
         # Get national dex number if available
         national_dex = None
@@ -1573,10 +1597,10 @@ def get_or_create_card(api_card_id):
             artist=formatted.get('artist'),
             image_small=formatted['images']['small'],
             image_large=formatted['images']['large'],
-            price_market=formatted['prices'].get('market'),
-            price_low=formatted['prices'].get('low'),
-            price_mid=formatted['prices'].get('mid'),
-            price_high=formatted['prices'].get('high'),
+            price_market=price_market,
+            price_low=price_low,
+            price_mid=price_mid,
+            price_high=price_high,
             national_dex=national_dex
         )
 

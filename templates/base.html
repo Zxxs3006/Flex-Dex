@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}FlexDex - Pokémon Card Scanner{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/pokedex.css') }}">
+    {% block extra_css %}{% endblock %}
+</head>
+<body>
+    <div class="pokedex-container">
+        <div class="pokedex-frame">
+            <!-- LED Indicators -->
+            <div class="pokedex-leds">
+                <div class="led led-blue"></div>
+                <div class="led led-red"></div>
+                <div class="led led-yellow"></div>
+                <div class="led led-green"></div>
+            </div>
+
+            <!-- Navigation Bar -->
+            <nav class="nav-bar">
+                <a href="{{ url_for('index') }}" class="nav-logo">
+                    <span class="logo-flex">Flex</span><span class="logo-dex">Dex</span>
+                </a>
+                <div class="nav-links">
+                    <a href="{{ url_for('index') }}" class="nav-link {% if request.endpoint == 'index' %}active{% endif %}">Home</a>
+                    <a href="{{ url_for('scanner') }}" class="nav-link {% if request.endpoint == 'scanner' %}active{% endif %}">PokéLens</a>
+                    <a href="{{ url_for('leaderboard') }}" class="nav-link {% if request.endpoint == 'leaderboard' %}active{% endif %}">Ranks</a>
+                    {% if current_user.is_authenticated %}
+                        <a href="{{ url_for('binder') }}" class="nav-link {% if request.endpoint == 'binder' %}active{% endif %}">Binder</a>
+                        <a href="{{ url_for('pokedex') }}" class="nav-link {% if request.endpoint == 'pokedex' %}active{% endif %}">Pokédex</a>
+                        <a href="{{ url_for('battle_lobby') }}" class="nav-link battle-link {% if 'battle' in request.endpoint %}active{% endif %}">Battle</a>
+                        <a href="{{ url_for('profile') }}" class="nav-link {% if request.endpoint == 'profile' %}active{% endif %}">
+                            {{ current_user.get_rank().icon }} Profile
+                        </a>
+                        <a href="{{ url_for('logout') }}" class="nav-link">Logout</a>
+                    {% else %}
+                        <a href="{{ url_for('login') }}" class="nav-link {% if request.endpoint == 'login' %}active{% endif %}">Login</a>
+                        <a href="{{ url_for('register') }}" class="nav-link {% if request.endpoint == 'register' %}active{% endif %}">Register</a>
+                    {% endif %}
+                </div>
+            </nav>
+
+            <!-- Main Screen -->
+            <div class="pokedex-screen">
+                <div class="screen-inner flicker">
+                    <!-- Flash Messages -->
+                    {% with messages = get_flashed_messages(with_categories=true) %}
+                        {% if messages %}
+                            {% for category, message in messages %}
+                                <div class="flash-message flash-{{ category }}">
+                                    {{ message }}
+                                </div>
+                            {% endfor %}
+                        {% endif %}
+                    {% endwith %}
+
+                    <!-- Page Content -->
+                    {% block content %}{% endblock %}
+                </div>
+            </div>
+
+            <!-- Bottom Buttons -->
+            <div class="pokedex-buttons">
+                {% block buttons %}{% endblock %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Rank Up Modal -->
+    <div id="rank-up-modal" class="modal" style="display: none;">
+        <div class="modal-content rank-up-content">
+            <div class="rank-up-animation">
+                <div class="rank-icon" id="new-rank-icon"></div>
+                <h2>RANK UP!</h2>
+                <p id="new-rank-name"></p>
+            </div>
+            <button onclick="closeRankUpModal()" class="pokedex-btn btn-primary">Continue</button>
+        </div>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/animations.js') }}"></script>
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

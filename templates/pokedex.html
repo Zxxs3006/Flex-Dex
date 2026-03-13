@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}My Pokédex - FlexDex{% endblock %}
+
+{% block content %}
+<div class="pokedex-page">
+    <div class="page-header">
+        <h1>📖 Regional Pokédex</h1>
+        <p>Complete each region's Pokédex by collecting cards of every Pokémon!</p>
+    </div>
+
+    <!-- Overall Progress -->
+    <div class="overall-progress">
+        <div class="progress-circle">
+            <span class="progress-number">{{ regional_progress.values()|selectattr('completed')|list|length }}</span>
+            <span class="progress-label">/ 9 Complete</span>
+        </div>
+    </div>
+
+    <!-- Regional Dex Grid -->
+    <div class="regional-dex-grid">
+        {% for region_id, progress in regional_progress.items() %}
+        <div class="regional-dex-card {% if progress.completed %}completed{% endif %}"
+             onclick="window.location='{{ url_for('regional_dex', region=region_id) }}'">
+            <div class="dex-header" style="background: linear-gradient(135deg, {{ loop.cycle('#ef4444', '#f59e0b', '#10b981', '#3b82f6', '#6366f1', '#8b5cf6', '#ec4899', '#f43f5e', '#14b8a6') }}, {{ loop.cycle('#dc2626', '#d97706', '#059669', '#2563eb', '#4f46e5', '#7c3aed', '#db2777', '#e11d48', '#0d9488') }});">
+                <div class="dex-icon">{{ progress.icon }}</div>
+                <h3>{{ progress.name }}</h3>
+                <p class="dex-game">{{ progress.game }}</p>
+            </div>
+            <div class="dex-body">
+                <div class="dex-progress-bar">
+                    <div class="dex-fill" style="width: {{ progress.percentage }}%;"></div>
+                </div>
+                <div class="dex-stats">
+                    <span class="dex-count">{{ progress.owned }} / {{ progress.total }}</span>
+                    <span class="dex-percent">{{ progress.percentage }}%</span>
+                </div>
+                {% if progress.completed %}
+                <div class="dex-complete-badge">
+                    <span>✓ COMPLETE</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="pokedex-tips">
+        <h3>💡 Tips</h3>
+        <ul>
+            <li>Scan cards using PokéLens to add them to your collection</li>
+            <li>Each unique Pokémon counts toward regional completion</li>
+            <li>Complete all 9 regions to become a true Pokémon Master!</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
+
+{% block buttons %}
+<a href="{{ url_for('scanner') }}" class="pokedex-btn btn-primary">Scan Cards</a>
+<a href="{{ url_for('binder') }}" class="pokedex-btn btn-secondary">View Binder</a>
+{% endblock %}

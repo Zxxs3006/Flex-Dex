@@ -1,0 +1,137 @@
+{% extends "base.html" %}
+
+{% block title %}{{ card.name }} - FlexDex{% endblock %}
+
+{% block content %}
+<div class="card-details-page">
+    <div class="card-display">
+        <div class="pokemon-card card-reveal">
+            <img src="{{ card.images.large or card.images.small }}" alt="{{ card.name }}">
+        </div>
+
+        <div class="card-info-panel" style="background: white; border-radius: 15px; padding: 20px; max-width: 400px;">
+            <h2 class="card-name">{{ card.name }}</h2>
+
+            <div class="card-meta">
+                {% if card.hp %}
+                <span class="card-tag">HP {{ card.hp }}</span>
+                {% endif %}
+                {% for type in card.types %}
+                <span class="card-tag type-{{ type|lower }}">{{ type }}</span>
+                {% endfor %}
+                {% if card.rarity %}
+                <span class="card-tag rarity">{{ card.rarity }}</span>
+                {% endif %}
+            </div>
+
+            <div style="margin: 15px 0;">
+                <p><strong>Set:</strong> {{ card.set.name }}</p>
+                <p><strong>Number:</strong> {{ card.number }}</p>
+                {% if card.artist %}
+                <p><strong>Artist:</strong> {{ card.artist }}</p>
+                {% endif %}
+            </div>
+
+            {% if card.attacks %}
+            <div style="margin: 15px 0;">
+                <h4>Attacks</h4>
+                {% for attack in card.attacks %}
+                <div style="background: #f5f5f5; padding: 10px; border-radius: 8px; margin: 5px 0;">
+                    <strong>{{ attack.name }}</strong>
+                    {% if attack.damage %}
+                    <span style="float: right;">{{ attack.damage }}</span>
+                    {% endif %}
+                    {% if attack.text %}
+                    <p style="font-size: 0.9em; margin-top: 5px;">{{ attack.text }}</p>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if card.abilities %}
+            <div style="margin: 15px 0;">
+                <h4>Abilities</h4>
+                {% for ability in card.abilities %}
+                <div style="background: #e8f4f8; padding: 10px; border-radius: 8px; margin: 5px 0;">
+                    <strong>{{ ability.name }}</strong> ({{ ability.type }})
+                    <p style="font-size: 0.9em; margin-top: 5px;">{{ ability.text }}</p>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% if card.prices.market %}
+            <div class="card-price" style="font-size: 1.5em; margin-top: 20px;">
+                Market Price: ${{ "%.2f"|format(card.prices.market) }}
+            </div>
+            {% if card.prices.low and card.prices.high %}
+            <p style="font-size: 0.9em; color: #666;">
+                Range: ${{ "%.2f"|format(card.prices.low) }} - ${{ "%.2f"|format(card.prices.high) }}
+            </p>
+            {% endif %}
+            {% endif %}
+
+            <!-- Buy Links -->
+            <div style="margin-top: 20px;">
+                {% if card.tcgplayer_url %}
+                <a href="{{ card.tcgplayer_url }}" target="_blank" class="pokedex-btn btn-primary" style="display: inline-block; text-decoration: none; margin: 5px;">
+                    View on TCGPlayer
+                </a>
+                {% endif %}
+                {% if card.cardmarket_url %}
+                <a href="{{ card.cardmarket_url }}" target="_blank" class="pokedex-btn btn-secondary" style="display: inline-block; text-decoration: none; margin: 5px;">
+                    View on Cardmarket
+                </a>
+                {% endif %}
+            </div>
+
+            <!-- PSA Graded Prices Section -->
+            {% if card.psa_ebay_urls %}
+            <div style="margin-top: 25px; padding-top: 20px; border-top: 2px solid #eee;">
+                <h4 style="margin-bottom: 15px;">🏆 PSA Graded Prices (eBay Sold)</h4>
+                <p style="font-size: 0.85em; color: #666; margin-bottom: 15px;">
+                    View recent sold prices for graded versions of this card
+                </p>
+                <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+                    {% if card.psa_ebay_urls.psa_10 %}
+                    <a href="{{ card.psa_ebay_urls.psa_10 }}" target="_blank"
+                       style="background: linear-gradient(145deg, #FFD700, #FFA500); color: #333; padding: 10px 15px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.9em;">
+                        PSA 10
+                    </a>
+                    {% endif %}
+                    {% if card.psa_ebay_urls.psa_9 %}
+                    <a href="{{ card.psa_ebay_urls.psa_9 }}" target="_blank"
+                       style="background: linear-gradient(145deg, #C0C0C0, #A0A0A0); color: #333; padding: 10px 15px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.9em;">
+                        PSA 9
+                    </a>
+                    {% endif %}
+                    {% if card.psa_ebay_urls.cgc %}
+                    <a href="{{ card.psa_ebay_urls.cgc }}" target="_blank"
+                       style="background: linear-gradient(145deg, #4CAF50, #388E3C); color: white; padding: 10px 15px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.9em;">
+                        CGC Graded
+                    </a>
+                    {% endif %}
+                    {% if card.psa_ebay_urls.sold %}
+                    <a href="{{ card.psa_ebay_urls.sold }}" target="_blank"
+                       style="background: linear-gradient(145deg, #2196F3, #1976D2); color: white; padding: 10px 15px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.9em;">
+                        All PSA Sold
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block buttons %}
+<a href="{{ url_for('scanner') }}" class="pokedex-btn btn-secondary">Search Another</a>
+{% if current_user.is_authenticated %}
+<form action="{{ url_for('add_to_binder') }}" method="POST" style="display: inline;">
+    <input type="hidden" name="card_id" value="{{ card.id }}">
+    <button type="submit" class="pokedex-btn btn-success">Add to Binder</button>
+</form>
+{% endif %}
+{% endblock %}

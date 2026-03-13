@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+
+{% block title %}{{ region_info.name }} Pokédex - FlexDex{% endblock %}
+
+{% block content %}
+<div class="regional-dex-page">
+    <div class="region-header" style="background: linear-gradient(135deg, var(--pokedex-red), var(--pokedex-dark-red));">
+        <a href="{{ url_for('pokedex') }}" class="back-link">← Back to Pokédex</a>
+        <div class="region-title">
+            <span class="region-icon">{{ region_info.icon }}</span>
+            <h1>{{ region_info.name }} Pokédex</h1>
+            <p>{{ region_info.game }}</p>
+        </div>
+        <div class="region-progress">
+            <div class="progress-circle-large {% if progress.completed %}complete{% endif %}">
+                <span class="progress-percent">{{ progress.percentage }}%</span>
+            </div>
+            <p>{{ progress.owned }} / {{ progress.total }} Pokémon</p>
+        </div>
+    </div>
+
+    {% if progress.completed %}
+    <div class="completion-banner">
+        <span>🎉</span>
+        <span>Congratulations! You've completed the {{ region_info.name }} Pokédex!</span>
+        <span>🎉</span>
+    </div>
+    {% endif %}
+
+    <div class="dex-grid">
+        {% for dex_num in dex_range %}
+        <div class="dex-slot {% if dex_num in owned_pokemon %}owned{% else %}missing{% endif %}">
+            <span class="dex-number">#{{ dex_num }}</span>
+            {% if dex_num in owned_pokemon %}
+            <img src="{{ owned_pokemon[dex_num].image_small }}" alt="{{ owned_pokemon[dex_num].name }}"
+                 onclick="window.location='{{ url_for('card_details', card_id=owned_pokemon[dex_num].card_id) }}'">
+            <span class="dex-name">{{ owned_pokemon[dex_num].name }}</span>
+            {% else %}
+            <div class="dex-silhouette">?</div>
+            <span class="dex-name">???</span>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="dex-legend">
+        <div class="legend-item">
+            <div class="legend-box owned"></div>
+            <span>Owned</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-box missing"></div>
+            <span>Missing</span>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block buttons %}
+<a href="{{ url_for('scanner') }}" class="pokedex-btn btn-primary">Scan More Cards</a>
+<a href="{{ url_for('pokedex') }}" class="pokedex-btn btn-secondary">All Regions</a>
+{% endblock %}

@@ -1,0 +1,687 @@
+{% extends "base.html" %}
+
+{% block title %}Battle - FlexDex{% endblock %}
+
+{% block content %}
+<div class="battle-room" data-battle-id="{{ battle.id }}">
+
+    <!-- Battle Header -->
+    <div class="battle-header">
+        <div class="player-info player1 {{ 'you' if is_player1 else '' }}">
+            <span class="player-name">{{ battle.player1.username }}</span>
+            <span class="player-pokemon-count">{{ 6 - battle.get_player1_knocked_out()|length }} Pokemon</span>
+        </div>
+        <div class="turn-indicator">
+            {% if battle.status == 'waiting' %}
+            <span>Waiting for opponent...</span>
+            {% elif battle.status == 'completed' %}
+            <span class="battle-over">Battle Over!</span>
+            {% else %}
+            <span>Turn {{ battle.current_turn }}</span>
+            {% endif %}
+        </div>
+        <div class="player-info player2 {{ 'you' if not is_player1 else '' }}">
+            <span class="player-name">{{ battle.player2.username if battle.player2 else 'Waiting...' }}</span>
+            <span class="player-pokemon-count">{{ 6 - battle.get_player2_knocked_out()|length if battle.player2 else '?' }} Pokemon</span>
+        </div>
+    </div>
+
+    {% if battle.status == 'active' %}
+    <!-- Battle Arena -->
+    <div class="battle-arena">
+        <!-- Opponent's Active Pokemon -->
+        <div class="pokemon-area opponent">
+            {% set opponent_active_card = None %}
+            {% for pc in opponent_party_cards %}
+                {% if pc.position == opponent_active %}
+                    {% set opponent_active_card = pc.card %}
+                {% endif %}
+            {% endfor %}
+
+            {% if opponent_active_card %}
+            <div class="pokemon-display">
+                <div class="pokemon-info-bar">
+                    <span class="pokemon-name">{{ opponent_active_card.name }}</span>
+                    <div class="hp-bar-container">
+                        {% set max_hp = opponent_active_card.hp or 100 %}
+                        {% set current_hp = opponent_hp.get(opponent_active_card.id|string, max_hp) %}
+                        {% set hp_percent = (current_hp / max_hp * 100)|int %}
+                        <div class="hp-bar" style="width: {{ hp_percent }}%"></div>
+                        <span class="hp-text">{{ current_hp }}/{{ max_hp }}</span>
+                    </div>
+                </div>
+                <img src="{{ opponent_active_card.image_large or opponent_active_card.image_small }}"
+                     alt="{{ opponent_active_card.name }}" class="pokemon-image opponent-pokemon">
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Your Active Pokemon -->
+        <div class="pokemon-area yours">
+            {% set my_active_card = None %}
+            {% for pc in my_party_cards %}
+                {% if pc.position == my_active %}
+                    {% set my_active_card = pc.card %}
+                {% endif %}
+            {% endfor %}
+
+            {% if my_active_card %}
+            <div class="pokemon-display">
+                <img src="{{ my_active_card.image_large or my_active_card.image_small }}"
+                     alt="{{ my_active_card.name }}" class="pokemon-image your-pokemon">
+                <div class="pokemon-info-bar">
+                    <span class="pokemon-name">{{ my_active_card.name }}</span>
+                    <div class="hp-bar-container">
+                        {% set max_hp = my_active_card.hp or 100 %}
+                        {% set current_hp = my_hp.get(my_active_card.id|string, max_hp) %}
+                        {% set hp_percent = (current_hp / max_hp * 100)|int %}
+                        <div class="hp-bar {{ 'low' if hp_percent < 25 else 'medium' if hp_percent < 50 else '' }}"
+                             style="width: {{ hp_percent }}%"></div>
+                        <span class="hp-text">{{ current_hp }}/{{ max_hp }}</span>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Action Panel -->
+    <div class="action-panel">
+        {% if battle.is_player_turn(current_user.id) %}
+        <div class="turn-alert">Your Turn!</div>
+
+        <div class="action-buttons">
+            <button class="action-btn attack" onclick="showAttacks()">Attack</button>
+            <button class="action-btn switch" onclick="showSwitch()">Switch</button>
+            <button class="action-btn forfeit" onclick="confirmForfeit()">Forfeit</button>
+        </div>
+
+        <!-- Attack Selection (hidden by default) -->
+        <div class="attack-selection" id="attack-selection" style="display: none;">
+            <h4>Choose Attack</h4>
+            <div class="attacks-list" id="attacks-list">
+                <!-- Populated by JavaScript -->
+                <button class="attack-option" onclick="executeAttack(0)">Attack 1</button>
+                <button class="attack-option" onclick="executeAttack(1)">Attack 2</button>
+            </div>
+            <button class="cancel-btn" onclick="hideMenus()">Cancel</button>
+        </div>
+
+        <!-- Switch Selection (hidden by default) -->
+        <div class="switch-selection" id="switch-selection" style="display: none;">
+            <h4>Switch Pokemon</h4>
+            <div class="switch-list">
+                {% for pc in my_party_cards %}
+                    {% if pc.position != my_active and pc.card.id not in (battle.get_player1_knocked_out() if is_player1 else battle.get_player2_knocked_out()) %}
+                    {% set card_hp = my_hp.get(pc.card.id|string, pc.card.hp or 100) %}
+                    <div class="switch-option" onclick="executeSwitch({{ pc.position }})">
+                        <img src="{{ pc.card.image_small }}" alt="{{ pc.card.name }}">
+                        <div class="switch-info">
+                            <span class="switch-name">{{ pc.card.name }}</span>
+                            <span class="switch-hp">HP: {{ card_hp }}/{{ pc.card.hp or 100 }}</span>
+                        </div>
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+            <button class="cancel-btn" onclick="hideMenus()">Cancel</button>
+        </div>
+        {% else %}
+        <div class="waiting-turn">Waiting for opponent's move...</div>
+        {% endif %}
+    </div>
+
+    {% elif battle.status == 'completed' %}
+    <!-- Battle Results -->
+    <div class="battle-results">
+        <h2>{{ 'Victory!' if battle.winner_id == current_user.id else 'Defeat' }}</h2>
+        <div class="result-icon">{{ 'W' if battle.winner_id == current_user.id else 'L' }}</div>
+        <p>Winner: {{ battle.winner.username }}</p>
+        <a href="{{ url_for('battle_lobby') }}" class="pokedex-btn btn-primary">Back to Lobby</a>
+    </div>
+
+    {% elif battle.status == 'waiting' %}
+    <!-- Waiting for opponent -->
+    <div class="waiting-screen">
+        <div class="waiting-animation">
+            <div class="pokeball"></div>
+        </div>
+        <h3>Waiting for an opponent...</h3>
+        <p>Share your battle link or wait for someone to join!</p>
+        <button class="pokedex-btn btn-secondary" onclick="confirmForfeit()">Cancel Battle</button>
+    </div>
+    {% endif %}
+
+    <!-- Battle Log -->
+    <div class="battle-log" id="battle-log">
+        <h4>Battle Log</h4>
+        <div class="log-entries" id="log-entries">
+            {% for turn in recent_turns|reverse %}
+            <div class="log-entry {{ 'damage' if turn.damage_dealt else '' }} {{ 'knockout' if turn.was_knockout else '' }}">
+                {{ turn.message }}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<style>
+.battle-room {
+    padding: 10px;
+    max-width: 600px;
+    margin: 0 auto;
+    min-height: 80vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.battle-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: white;
+    border-radius: 15px;
+    padding: 10px 15px;
+    margin-bottom: 10px;
+}
+
+.player-info {
+    text-align: center;
+}
+
+.player-info.you {
+    font-weight: bold;
+}
+
+.player-info.you .player-name {
+    color: var(--flex-purple);
+}
+
+.player-name {
+    display: block;
+    font-size: 1em;
+}
+
+.player-pokemon-count {
+    font-size: 0.75em;
+    color: var(--pokedex-gray);
+}
+
+.turn-indicator {
+    background: var(--pokedex-gold);
+    color: white;
+    padding: 5px 15px;
+    border-radius: 15px;
+    font-weight: bold;
+    font-size: 0.9em;
+}
+
+.battle-over {
+    color: white;
+}
+
+.battle-arena {
+    flex: 1;
+    background: linear-gradient(180deg, #87CEEB 0%, #98FB98 50%, #8B4513 100%);
+    border-radius: 15px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 350px;
+    position: relative;
+    overflow: hidden;
+}
+
+.pokemon-area {
+    display: flex;
+    justify-content: center;
+}
+
+.pokemon-area.opponent {
+    justify-content: flex-end;
+    padding-right: 20px;
+}
+
+.pokemon-area.yours {
+    justify-content: flex-start;
+    padding-left: 20px;
+}
+
+.pokemon-display {
+    text-align: center;
+}
+
+.pokemon-image {
+    max-width: 150px;
+    max-height: 200px;
+    filter: drop-shadow(0 5px 10px rgba(0,0,0,0.3));
+}
+
+.opponent-pokemon {
+    transform: scaleX(-1);
+}
+
+.pokemon-info-bar {
+    background: rgba(255,255,255,0.9);
+    border-radius: 10px;
+    padding: 8px 15px;
+    min-width: 180px;
+}
+
+.pokemon-name {
+    display: block;
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.hp-bar-container {
+    background: #ddd;
+    border-radius: 10px;
+    height: 18px;
+    position: relative;
+    overflow: hidden;
+}
+
+.hp-bar {
+    background: linear-gradient(90deg, #4CAF50, #8BC34A);
+    height: 100%;
+    border-radius: 10px;
+    transition: width 0.5s ease;
+}
+
+.hp-bar.medium {
+    background: linear-gradient(90deg, #FFC107, #FFD54F);
+}
+
+.hp-bar.low {
+    background: linear-gradient(90deg, #f44336, #FF5722);
+}
+
+.hp-text {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 0.75em;
+    font-weight: bold;
+    color: #333;
+}
+
+.action-panel {
+    background: white;
+    border-radius: 15px;
+    padding: 15px;
+    margin-top: 10px;
+}
+
+.turn-alert {
+    text-align: center;
+    font-weight: bold;
+    color: var(--pokedex-green);
+    margin-bottom: 10px;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+}
+
+.action-buttons {
+    display: flex;
+    gap: 10px;
+}
+
+.action-btn {
+    flex: 1;
+    padding: 15px;
+    border: none;
+    border-radius: 10px;
+    font-weight: bold;
+    font-size: 1em;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.action-btn.attack {
+    background: var(--pokedex-red);
+    color: white;
+}
+
+.action-btn.switch {
+    background: var(--flex-purple);
+    color: white;
+}
+
+.action-btn.forfeit {
+    background: #666;
+    color: white;
+}
+
+.action-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+.attack-selection, .switch-selection {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #eee;
+}
+
+.attack-selection h4, .switch-selection h4 {
+    margin-bottom: 10px;
+    color: var(--text-dark);
+}
+
+.attacks-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.attack-option {
+    padding: 12px 15px;
+    background: linear-gradient(145deg, #ff6b6b, #ee5a5a);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: bold;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.3s;
+}
+
+.attack-option:hover {
+    background: linear-gradient(145deg, #ff5252, #e53935);
+}
+
+.switch-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+}
+
+.switch-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background: #f5f5f5;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.switch-option:hover {
+    background: #e8e5ff;
+    transform: translateY(-2px);
+}
+
+.switch-option img {
+    width: 50px;
+    height: 70px;
+    object-fit: cover;
+    border-radius: 5px;
+}
+
+.switch-info {
+    flex: 1;
+}
+
+.switch-name {
+    display: block;
+    font-weight: bold;
+    font-size: 0.9em;
+}
+
+.switch-hp {
+    font-size: 0.8em;
+    color: var(--pokedex-gray);
+}
+
+.cancel-btn {
+    margin-top: 10px;
+    padding: 10px 20px;
+    background: #ddd;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.waiting-turn {
+    text-align: center;
+    padding: 20px;
+    color: var(--pokedex-gray);
+    font-style: italic;
+}
+
+.battle-results {
+    background: white;
+    border-radius: 15px;
+    padding: 40px;
+    text-align: center;
+    margin: 20px 0;
+}
+
+.battle-results h2 {
+    font-size: 2em;
+    margin-bottom: 10px;
+}
+
+.result-icon {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5em;
+    font-weight: bold;
+    margin: 20px auto;
+}
+
+.battle-results h2:contains('Victory') + .result-icon,
+.result-icon {
+    background: var(--pokedex-green);
+    color: white;
+}
+
+.waiting-screen {
+    background: white;
+    border-radius: 15px;
+    padding: 40px;
+    text-align: center;
+    margin: 20px 0;
+}
+
+.waiting-animation {
+    margin-bottom: 20px;
+}
+
+.pokeball {
+    width: 60px;
+    height: 60px;
+    margin: 0 auto;
+    border-radius: 50%;
+    background: linear-gradient(180deg, #f44336 50%, white 50%);
+    border: 4px solid #333;
+    position: relative;
+    animation: bounce 1s infinite;
+}
+
+.pokeball::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: #333;
+    transform: translateY(-50%);
+}
+
+.pokeball::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 16px;
+    height: 16px;
+    background: white;
+    border: 3px solid #333;
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+}
+
+@keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-15px); }
+}
+
+.battle-log {
+    background: white;
+    border-radius: 15px;
+    padding: 15px;
+    margin-top: 10px;
+}
+
+.battle-log h4 {
+    margin-bottom: 10px;
+    color: var(--text-dark);
+}
+
+.log-entries {
+    max-height: 150px;
+    overflow-y: auto;
+}
+
+.log-entry {
+    padding: 8px 10px;
+    margin: 5px 0;
+    background: #f5f5f5;
+    border-radius: 8px;
+    font-size: 0.9em;
+}
+
+.log-entry.damage {
+    border-left: 3px solid var(--pokedex-red);
+}
+
+.log-entry.knockout {
+    background: #ffe5e5;
+    border-left: 3px solid #f44336;
+    font-weight: bold;
+}
+</style>
+
+<script>
+const battleId = {{ battle.id }};
+let pollInterval;
+
+function showAttacks() {
+    document.getElementById('attack-selection').style.display = 'block';
+    document.getElementById('switch-selection').style.display = 'none';
+}
+
+function showSwitch() {
+    document.getElementById('switch-selection').style.display = 'block';
+    document.getElementById('attack-selection').style.display = 'none';
+}
+
+function hideMenus() {
+    document.getElementById('attack-selection').style.display = 'none';
+    document.getElementById('switch-selection').style.display = 'none';
+}
+
+function executeAttack(attackIndex) {
+    fetch(`/api/battle/${battleId}/attack`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({attack_index: attackIndex})
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            addLogEntry(data.message, data.was_knockout);
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            alert(data.error);
+        }
+    });
+}
+
+function executeSwitch(position) {
+    fetch(`/api/battle/${battleId}/switch`, {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({position: position})
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            addLogEntry(data.message, false);
+            setTimeout(() => location.reload(), 500);
+        } else {
+            alert(data.error);
+        }
+    });
+}
+
+function confirmForfeit() {
+    if (confirm('Are you sure you want to forfeit?')) {
+        fetch(`/api/battle/${battleId}/forfeit`, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'}
+        })
+        .then(res => res.json())
+        .then(data => {
+            window.location.href = '{{ url_for("battle_lobby") }}';
+        });
+    }
+}
+
+function addLogEntry(message, isKnockout) {
+    const entries = document.getElementById('log-entries');
+    const entry = document.createElement('div');
+    entry.className = 'log-entry damage' + (isKnockout ? ' knockout' : '');
+    entry.textContent = message;
+    entries.appendChild(entry);
+    entries.scrollTop = entries.scrollHeight;
+}
+
+// Poll for battle state updates
+function pollBattleState() {
+    fetch(`/api/battle/${battleId}/state`)
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            if (data.status === 'completed' || data.status === 'active') {
+                // Check if we need to refresh
+                const currentTurn = {{ battle.current_turn }};
+                if (data.current_turn !== currentTurn || data.status === 'completed') {
+                    location.reload();
+                }
+            }
+        }
+    });
+}
+
+// Start polling if battle is active and not our turn
+{% if battle.status == 'active' and not battle.is_player_turn(current_user.id) %}
+pollInterval = setInterval(pollBattleState, 3000);
+{% elif battle.status == 'waiting' %}
+pollInterval = setInterval(pollBattleState, 5000);
+{% endif %}
+
+// Cleanup on page leave
+window.addEventListener('beforeunload', () => {
+    if (pollInterval) clearInterval(pollInterval);
+});
+</script>
+{% endblock %}
+
+{% block buttons %}
+<a href="{{ url_for('battle_lobby') }}" class="pokedex-btn btn-secondary">Back to Lobby</a>
+{% endblock %}

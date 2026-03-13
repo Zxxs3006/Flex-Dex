@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+
+{% block title %}Login - Pokédex{% endblock %}
+
+{% block content %}
+<div class="login-page" style="max-width: 400px; margin: 0 auto;">
+    <h2 style="text-align: center; margin-bottom: 30px;">Trainer Login</h2>
+
+    <form class="pokedex-form" method="POST" action="{{ url_for('login') }}">
+        <div class="form-group">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" required
+                   placeholder="Enter your trainer name">
+        </div>
+
+        <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" required
+                   placeholder="Enter your password">
+        </div>
+
+        <div style="text-align: center; margin-top: 20px;">
+            <button type="submit" class="pokedex-btn btn-primary">Login</button>
+        </div>
+    </form>
+
+    <p style="text-align: center; margin-top: 30px;">
+        New trainer? <a href="{{ url_for('register') }}" style="color: #cc0000;">Create an account</a>
+    </p>
+</div>
+{% endblock %}

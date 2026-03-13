@@ -1,0 +1,388 @@
+{% extends "base.html" %}
+
+{% block title %}Card Search - FlexDex{% endblock %}
+
+{% block content %}
+<div class="search-page">
+    <div class="search-header">
+        <h2>🔍 Find Your Card</h2>
+        <p>Enter the card details for an exact match</p>
+    </div>
+
+    <!-- Advanced Search Form -->
+    <div class="search-form-container">
+        <form action="{{ url_for('search') }}" method="GET" class="advanced-search-form">
+            <!-- Card Name -->
+            <div class="search-field">
+                <label for="card-name">Pokemon Name</label>
+                <input type="text" id="card-name" name="q" value="{{ query }}"
+                       placeholder="e.g., Charizard, Pikachu, Mewtwo..."
+                       autocomplete="off" required>
+            </div>
+
+            <!-- Set Number -->
+            <div class="search-field">
+                <label for="card-number">Card Number (bottom left of card)</label>
+                <input type="text" id="card-number" name="number" value="{{ number }}"
+                       placeholder="e.g., 25/165 or just 25">
+                <small>The number shown at the bottom left of your card</small>
+            </div>
+
+            <!-- Set Name (Optional) -->
+            <div class="search-field">
+                <label for="set-name">Set Name (optional)</label>
+                <input type="text" id="set-name" name="set" value="{{ set_name }}"
+                       placeholder="e.g., Base Set, Sword & Shield...">
+                <small>Helps narrow down if you know the set</small>
+            </div>
+
+            <button type="submit" class="pokedex-btn btn-primary btn-large">
+                Search Cards
+            </button>
+        </form>
+    </div>
+
+    <!-- Results Section -->
+    {% if searched %}
+    <div class="search-results-section">
+        <h3>
+            {% if exact_match %}
+            Exact Match Found!
+            {% elif cards %}
+            Found {{ cards|length }} Result(s)
+            {% else %}
+            No Results
+            {% endif %}
+        </h3>
+
+        {% if cards %}
+        <div class="search-results-grid">
+            {% for card in cards %}
+            <div class="search-result-card" onclick="window.location='{{ url_for('card_details', card_id=card.id) }}'">
+                <div class="result-card-image">
+                    <img src="{{ card.images.small }}" alt="{{ card.name }}">
+                    {% if loop.index == 1 and exact_match %}
+                    <span class="exact-match-badge">Best Match</span>
+                    {% endif %}
+                </div>
+                <div class="result-card-info">
+                    <h4>{{ card.name }}</h4>
+                    <p class="result-set">{{ card.set.name }}</p>
+                    <p class="result-number">#{{ card.number }}</p>
+                    {% if card.rarity %}
+                    <span class="card-tag rarity">{{ card.rarity }}</span>
+                    {% endif %}
+                    {% if card.prices.market %}
+                    <div class="result-price">${{ "%.2f"|format(card.prices.market) }}</div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <div class="empty-state-icon">🔍</div>
+            <h3>No cards found</h3>
+            <p>Try adjusting your search - check the spelling or try just the Pokemon name</p>
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
+    <!-- Search Tips -->
+    <div class="search-tips">
+        <h3>💡 How to Find Your Exact Card</h3>
+        <div class="tip-grid">
+            <div class="tip-card">
+                <div class="tip-icon">1️⃣</div>
+                <h4>Find the Pokemon Name</h4>
+                <p>The name is at the top of your card</p>
+            </div>
+            <div class="tip-card">
+                <div class="tip-icon">2️⃣</div>
+                <h4>Find the Card Number</h4>
+                <p>Look at the bottom left - it shows something like "25/165"</p>
+            </div>
+            <div class="tip-card">
+                <div class="tip-icon">3️⃣</div>
+                <h4>Enter Both Above</h4>
+                <p>This will find your exact card with accurate pricing!</p>
+            </div>
+        </div>
+        <div class="card-diagram">
+            <div class="diagram-card">
+                <div class="diagram-top">← Pokemon Name Here</div>
+                <div class="diagram-middle">
+                    <div class="diagram-image">🖼️</div>
+                </div>
+                <div class="diagram-bottom">
+                    <span class="diagram-number">25/165 ←</span>
+                    <span>Card Number</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.search-page {
+    padding: 10px;
+}
+
+.search-header {
+    text-align: center;
+    margin-bottom: 25px;
+}
+
+.search-header h2 {
+    margin-bottom: 5px;
+}
+
+.search-header p {
+    color: var(--pokedex-gray);
+}
+
+.search-form-container {
+    background: white;
+    border-radius: 15px;
+    padding: 25px;
+    max-width: 500px;
+    margin: 0 auto 30px;
+}
+
+.advanced-search-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.search-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.search-field label {
+    font-weight: 600;
+    color: var(--text-dark);
+}
+
+.search-field input {
+    padding: 12px 15px;
+    border: 2px solid #ddd;
+    border-radius: 10px;
+    font-size: 16px;
+    transition: border-color 0.3s ease;
+}
+
+.search-field input:focus {
+    outline: none;
+    border-color: var(--flex-purple);
+}
+
+.search-field small {
+    color: var(--pokedex-light-gray);
+    font-size: 0.85em;
+}
+
+.btn-large {
+    padding: 15px 30px;
+    font-size: 1.1em;
+    margin-top: 10px;
+}
+
+.search-results-section {
+    margin-top: 30px;
+}
+
+.search-results-section h3 {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.search-results-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 20px;
+}
+
+.search-result-card {
+    background: white;
+    border-radius: 15px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.search-result-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+}
+
+.result-card-image {
+    position: relative;
+    padding: 15px;
+    background: #f5f5f5;
+    text-align: center;
+}
+
+.result-card-image img {
+    max-width: 100%;
+    height: auto;
+    max-height: 200px;
+    object-fit: contain;
+}
+
+.exact-match-badge {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: var(--pokedex-green);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-size: 0.75em;
+    font-weight: 600;
+}
+
+.result-card-info {
+    padding: 15px;
+    color: var(--text-dark);
+}
+
+.result-card-info h4 {
+    margin-bottom: 5px;
+}
+
+.result-set {
+    color: var(--pokedex-gray);
+    font-size: 0.9em;
+    margin-bottom: 3px;
+}
+
+.result-number {
+    color: var(--pokedex-light-gray);
+    font-size: 0.85em;
+    margin-bottom: 10px;
+}
+
+.result-price {
+    font-size: 1.2em;
+    font-weight: bold;
+    color: var(--pokedex-green);
+    margin-top: 10px;
+}
+
+/* Search Tips */
+.search-tips {
+    background: white;
+    border-radius: 15px;
+    padding: 25px;
+    margin-top: 30px;
+    color: var(--text-dark);
+}
+
+.search-tips h3 {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.tip-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin-bottom: 25px;
+}
+
+.tip-card {
+    text-align: center;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 10px;
+}
+
+.tip-icon {
+    font-size: 2em;
+    margin-bottom: 10px;
+}
+
+.tip-card h4 {
+    margin-bottom: 5px;
+    font-size: 0.95em;
+}
+
+.tip-card p {
+    font-size: 0.85em;
+    color: var(--pokedex-gray);
+}
+
+.card-diagram {
+    display: flex;
+    justify-content: center;
+    margin-top: 20px;
+}
+
+.diagram-card {
+    width: 180px;
+    height: 250px;
+    background: linear-gradient(145deg, #f0f0f0, #e0e0e0);
+    border-radius: 10px;
+    border: 3px solid #ccc;
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+}
+
+.diagram-top {
+    background: #ffeb3b;
+    padding: 8px;
+    border-radius: 5px;
+    font-size: 0.8em;
+    font-weight: bold;
+    text-align: center;
+}
+
+.diagram-middle {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.diagram-image {
+    font-size: 3em;
+    opacity: 0.5;
+}
+
+.diagram-bottom {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.75em;
+    padding: 5px;
+    background: rgba(0,0,0,0.1);
+    border-radius: 5px;
+}
+
+.diagram-number {
+    font-weight: bold;
+    color: var(--flex-purple);
+}
+
+@media (max-width: 480px) {
+    .tip-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .search-results-grid {
+        grid-template-columns: 1fr;
+    }
+}
+</style>
+{% endblock %}
+
+{% block buttons %}
+<a href="{{ url_for('scanner') }}" class="pokedex-btn btn-primary">Use Camera</a>
+<a href="{{ url_for('index') }}" class="pokedex-btn btn-secondary">Back Home</a>
+{% endblock %}

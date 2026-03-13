@@ -1,0 +1,450 @@
+{% extends "base.html" %}
+
+{% block title %}Battle Lobby - FlexDex{% endblock %}
+
+{% block content %}
+<div class="battle-lobby">
+    <div class="lobby-header">
+        <h2>Battle Arena</h2>
+        <p>Challenge trainers using your Pokemon card collection!</p>
+    </div>
+
+    <!-- Battle Stats -->
+    <div class="stats-bar">
+        {% if battle_stats %}
+        <div class="stat-item">
+            <span class="stat-value">{{ battle_stats.wins }}</span>
+            <span class="stat-label">Wins</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-value">{{ battle_stats.losses }}</span>
+            <span class="stat-label">Losses</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-value">{{ battle_stats.win_rate() }}%</span>
+            <span class="stat-label">Win Rate</span>
+        </div>
+        <div class="stat-item rating">
+            <span class="stat-value">{{ battle_stats.battle_rating }}</span>
+            <span class="stat-label">Rating</span>
+        </div>
+        {% else %}
+        <div class="stat-item">
+            <span class="stat-value">0</span>
+            <span class="stat-label">Battles</span>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Party Status -->
+    <div class="party-status">
+        <h3>Your Battle Party</h3>
+        {% if active_party and active_party.card_count() > 0 %}
+        <div class="party-preview">
+            {% for pc in active_party.get_cards()[:6] %}
+            <div class="party-slot filled">
+                <img src="{{ pc.card.image_small }}" alt="{{ pc.card.name }}">
+            </div>
+            {% endfor %}
+            {% for _ in range(6 - active_party.card_count()) %}
+            <div class="party-slot empty">
+                <span>+</span>
+            </div>
+            {% endfor %}
+        </div>
+        <p class="party-count">{{ active_party.card_count() }}/6 Pokemon</p>
+        <div class="party-actions">
+            <a href="{{ url_for('manage_party') }}" class="pokedex-btn btn-secondary">Edit Party</a>
+            {% if active_party.card_count() >= 1 %}
+            <form action="{{ url_for('create_battle') }}" method="POST" style="display: inline;">
+                <button type="submit" class="pokedex-btn btn-primary">Create Battle</button>
+            </form>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="no-party">
+            <p>You need to build a battle party first!</p>
+            <a href="{{ url_for('manage_party') }}" class="pokedex-btn btn-primary">Build Party</a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- My Active Battles -->
+    {% if my_battles %}
+    <div class="battles-section">
+        <h3>Your Active Battles</h3>
+        <div class="battles-grid">
+            {% for battle in my_battles %}
+            <div class="battle-card {{ battle.status }}">
+                <div class="battle-status-badge">{{ battle.status|upper }}</div>
+                {% if battle.status == 'waiting' %}
+                <p>Waiting for opponent...</p>
+                <a href="{{ url_for('battle_room', battle_id=battle.id) }}" class="pokedex-btn btn-secondary btn-sm">View</a>
+                {% else %}
+                <div class="battle-vs">
+                    <span>{{ battle.player1.username }}</span>
+                    <span class="vs">VS</span>
+                    <span>{{ battle.player2.username }}</span>
+                </div>
+                {% if battle.is_player_turn(current_user.id) %}
+                <span class="your-turn">Your Turn!</span>
+                {% endif %}
+                <a href="{{ url_for('battle_room', battle_id=battle.id) }}" class="pokedex-btn btn-primary btn-sm">Enter Battle</a>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Available Battles -->
+    <div class="battles-section">
+        <h3>Open Battles</h3>
+        {% if available_battles %}
+        <div class="battles-grid">
+            {% for battle in available_battles %}
+            <div class="battle-card available">
+                <div class="challenger-info">
+                    <span class="challenger-name">{{ battle.player1.username }}</span>
+                    <span class="challenger-rank">{{ battle.player1.get_rank().icon }} {{ battle.player1.get_rank().name }}</span>
+                </div>
+                <div class="party-mini-preview">
+                    {% for pc in battle.player1_party.get_cards()[:3] %}
+                    <img src="{{ pc.card.image_small }}" alt="">
+                    {% endfor %}
+                    {% if battle.player1_party.card_count() > 3 %}
+                    <span>+{{ battle.player1_party.card_count() - 3 }}</span>
+                    {% endif %}
+                </div>
+                {% if active_party and active_party.card_count() >= 1 %}
+                <form action="{{ url_for('join_battle', battle_id=battle.id) }}" method="POST">
+                    <button type="submit" class="pokedex-btn btn-success btn-sm">Accept Challenge</button>
+                </form>
+                {% else %}
+                <span class="need-party">Need party to join</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-state">
+            <p>No open battles right now. Create one to challenge other trainers!</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Recent Battle History -->
+    {% if recent_battles %}
+    <div class="battles-section">
+        <h3>Recent Battles</h3>
+        <div class="battle-history">
+            {% for battle in recent_battles %}
+            <div class="history-item {{ 'win' if battle.winner_id == current_user.id else 'loss' }}">
+                <span class="result">{{ 'W' if battle.winner_id == current_user.id else 'L' }}</span>
+                <span class="opponent">vs {{ battle.get_opponent(current_user.id).username if battle.get_opponent(current_user.id) else 'Unknown' }}</span>
+                <span class="date">{{ battle.ended_at.strftime('%m/%d') if battle.ended_at else '' }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+.battle-lobby {
+    padding: 15px;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.lobby-header {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.lobby-header h2 {
+    margin-bottom: 5px;
+}
+
+.lobby-header p {
+    color: var(--pokedex-gray);
+}
+
+.stats-bar {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    background: white;
+    border-radius: 15px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+.stat-item {
+    text-align: center;
+}
+
+.stat-value {
+    display: block;
+    font-size: 1.5em;
+    font-weight: bold;
+    color: var(--flex-purple);
+}
+
+.stat-item.rating .stat-value {
+    color: var(--pokedex-gold);
+}
+
+.stat-label {
+    font-size: 0.8em;
+    color: var(--pokedex-gray);
+}
+
+.party-status {
+    background: white;
+    border-radius: 15px;
+    padding: 20px;
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.party-status h3 {
+    margin-bottom: 15px;
+    color: var(--text-dark);
+}
+
+.party-preview {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.party-slot {
+    width: 60px;
+    height: 85px;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 2px dashed #ddd;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.party-slot.filled {
+    border: 2px solid var(--flex-purple);
+}
+
+.party-slot.filled img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.party-slot.empty {
+    background: #f5f5f5;
+    color: #ccc;
+    font-size: 1.5em;
+}
+
+.party-count {
+    color: var(--pokedex-gray);
+    margin-bottom: 15px;
+}
+
+.party-actions {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+}
+
+.no-party p {
+    color: var(--pokedex-gray);
+    margin-bottom: 15px;
+}
+
+.battles-section {
+    background: white;
+    border-radius: 15px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.battles-section h3 {
+    margin-bottom: 15px;
+    color: var(--text-dark);
+}
+
+.battles-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+.battle-card {
+    background: #f8f9fa;
+    border-radius: 12px;
+    padding: 15px;
+    text-align: center;
+}
+
+.battle-card.waiting {
+    border: 2px dashed var(--pokedex-gold);
+}
+
+.battle-card.active {
+    border: 2px solid var(--flex-purple);
+}
+
+.battle-card.available {
+    border: 2px solid var(--pokedex-green);
+}
+
+.battle-status-badge {
+    display: inline-block;
+    padding: 3px 10px;
+    border-radius: 10px;
+    font-size: 0.75em;
+    font-weight: bold;
+    margin-bottom: 10px;
+    background: var(--pokedex-gold);
+    color: white;
+}
+
+.battle-card.active .battle-status-badge {
+    background: var(--flex-purple);
+}
+
+.battle-vs {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    margin: 10px 0;
+}
+
+.battle-vs .vs {
+    font-weight: bold;
+    color: var(--pokedex-red);
+}
+
+.your-turn {
+    display: block;
+    color: var(--pokedex-green);
+    font-weight: bold;
+    margin-bottom: 10px;
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.challenger-info {
+    margin-bottom: 10px;
+}
+
+.challenger-name {
+    display: block;
+    font-weight: bold;
+    font-size: 1.1em;
+}
+
+.challenger-rank {
+    font-size: 0.85em;
+    color: var(--pokedex-gray);
+}
+
+.party-mini-preview {
+    display: flex;
+    justify-content: center;
+    gap: 5px;
+    margin: 10px 0;
+}
+
+.party-mini-preview img {
+    width: 40px;
+    height: 55px;
+    object-fit: cover;
+    border-radius: 5px;
+}
+
+.need-party {
+    color: var(--pokedex-gray);
+    font-size: 0.9em;
+}
+
+.empty-state {
+    text-align: center;
+    padding: 20px;
+    color: var(--pokedex-gray);
+}
+
+.battle-history {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.history-item {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 10px 15px;
+    border-radius: 8px;
+    background: #f5f5f5;
+}
+
+.history-item.win {
+    border-left: 4px solid var(--pokedex-green);
+}
+
+.history-item.loss {
+    border-left: 4px solid var(--pokedex-red);
+}
+
+.history-item .result {
+    font-weight: bold;
+    width: 25px;
+}
+
+.history-item.win .result {
+    color: var(--pokedex-green);
+}
+
+.history-item.loss .result {
+    color: var(--pokedex-red);
+}
+
+.history-item .opponent {
+    flex: 1;
+}
+
+.history-item .date {
+    color: var(--pokedex-gray);
+    font-size: 0.85em;
+}
+
+.btn-sm {
+    padding: 8px 15px;
+    font-size: 0.9em;
+}
+
+@media (max-width: 480px) {
+    .stats-bar {
+        flex-wrap: wrap;
+    }
+
+    .party-slot {
+        width: 45px;
+        height: 65px;
+    }
+}
+</style>
+{% endblock %}
+
+{% block buttons %}
+<a href="{{ url_for('manage_party') }}" class="pokedex-btn btn-secondary">Manage Party</a>
+<a href="{{ url_for('index') }}" class="pokedex-btn btn-secondary">Back Home</a>
+{% endblock %}

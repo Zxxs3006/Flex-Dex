@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+
+{% block title %}Leaderboard - FlexDex{% endblock %}
+
+{% block content %}
+<div class="leaderboard-page">
+    <div class="page-header">
+        <h1>🏆 Trainer Leaderboard</h1>
+        <p>The top collectors in FlexDex</p>
+    </div>
+
+    <!-- Rank Legend -->
+    <div class="rank-legend">
+        <h3>Rank Tiers</h3>
+        <div class="rank-tiers">
+            {% for rank in RANKS %}
+            <div class="rank-tier" style="border-color: {{ rank.color }};">
+                <span class="tier-icon">{{ rank.icon }}</span>
+                <span class="tier-name">{{ rank.name }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Top Collectors -->
+    <div class="leaderboard-section">
+        <h3>📊 Top Collectors</h3>
+        <div class="leaderboard-table">
+            {% for trainer in top_collectors %}
+            <div class="leaderboard-row {% if loop.index <= 3 %}top-three{% endif %} {% if current_user.is_authenticated and current_user.id == trainer.id %}current-user{% endif %}"
+                 onclick="window.location='{{ url_for('profile', username=trainer.username) }}'">
+                <div class="lb-rank">
+                    {% if loop.index == 1 %}🥇
+                    {% elif loop.index == 2 %}🥈
+                    {% elif loop.index == 3 %}🥉
+                    {% else %}#{{ loop.index }}{% endif %}
+                </div>
+                <div class="lb-trainer">
+                    <span class="lb-rank-icon" style="color: {{ trainer.get_rank().color }};">{{ trainer.get_rank().icon }}</span>
+                    <span class="lb-name">{{ trainer.username }}</span>
+                </div>
+                <div class="lb-rank-name" style="color: {{ trainer.get_rank().color }};">
+                    {{ trainer.get_rank().name }}
+                </div>
+                <div class="lb-cards">
+                    {{ trainer.total_cards }} cards
+                </div>
+                <div class="lb-value">
+                    ${{ "%.0f"|format(trainer.collection_value) }}
+                </div>
+            </div>
+            {% else %}
+            <div class="empty-leaderboard">
+                <p>No trainers yet! Be the first to join.</p>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Top by Value -->
+    {% if top_value %}
+    <div class="leaderboard-section">
+        <h3>💰 Highest Collection Value</h3>
+        <div class="value-leaderboard">
+            {% for trainer in top_value %}
+            <div class="value-row" onclick="window.location='{{ url_for('profile', username=trainer.username) }}'">
+                <span class="value-rank">#{{ loop.index }}</span>
+                <span class="value-icon">{{ trainer.get_rank().icon }}</span>
+                <span class="value-name">{{ trainer.username }}</span>
+                <span class="value-amount">${{ "%.2f"|format(trainer.collection_value) }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if not current_user.is_authenticated %}
+    <div class="join-cta">
+        <h3>Want to see your name here?</h3>
+        <a href="{{ url_for('register') }}" class="pokedex-btn btn-primary">Join FlexDex</a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block buttons %}
+<a href="{{ url_for('scanner') }}" class="pokedex-btn btn-primary">Start Collecting</a>
+<a href="{{ url_for('index') }}" class="pokedex-btn btn-secondary">Home</a>
+{% endblock %}

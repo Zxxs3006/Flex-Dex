@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Profile - FlexDex{% endblock %}
+
+{% block content %}
+<div class="edit-profile-page">
+    <h1>Edit Profile</h1>
+
+    <form method="POST" action="{{ url_for('edit_profile') }}" class="profile-form">
+        <div class="form-group">
+            <label for="bio">Bio</label>
+            <textarea id="bio" name="bio" rows="4" maxlength="500"
+                      placeholder="Tell other trainers about yourself...">{{ current_user.bio }}</textarea>
+            <small>{{ current_user.bio|length }}/500 characters</small>
+        </div>
+
+        <div class="form-group">
+            <label for="favorite_pokemon">Favorite Pokémon</label>
+            <input type="text" id="favorite_pokemon" name="favorite_pokemon"
+                   value="{{ current_user.favorite_pokemon }}"
+                   placeholder="e.g., Pikachu" maxlength="100">
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" class="pokedex-btn btn-primary">Save Changes</button>
+            <a href="{{ url_for('profile') }}" class="pokedex-btn btn-secondary">Cancel</a>
+        </div>
+    </form>
+
+    <div class="profile-stats-preview">
+        <h3>Your Stats</h3>
+        <div class="stat-row">
+            <span>Current Rank:</span>
+            <span style="color: {{ current_user.get_rank().color }};">
+                {{ current_user.get_rank().icon }} {{ current_user.get_rank().name }}
+            </span>
+        </div>
+        <div class="stat-row">
+            <span>Total Cards:</span>
+            <span>{{ current_user.total_cards }}</span>
+        </div>
+        <div class="stat-row">
+            <span>Collection Value:</span>
+            <span>${{ "%.2f"|format(current_user.collection_value) }}</span>
+        </div>
+    </div>
+</div>
+{% endblock %}

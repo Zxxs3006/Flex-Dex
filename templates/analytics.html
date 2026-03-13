@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}Collection Stats - Pokédex{% endblock %}
+
+{% block content %}
+<div class="analytics-page">
+    <h2 style="text-align: center; margin-bottom: 30px;">Collection Analytics</h2>
+
+    {% if stats.total_cards > 0 %}
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.total_cards }}</div>
+            <div class="stat-label">Total Cards</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">${{ "%.2f"|format(stats.total_value) }}</div>
+            <div class="stat-label">Collection Value</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.unique_cards }}</div>
+            <div class="stat-label">Unique Cards</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ stats.total_binders }}</div>
+            <div class="stat-label">Binders</div>
+        </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin-top: 30px;">
+        <!-- Most Valuable Card -->
+        {% if stats.most_valuable %}
+        <div class="stat-card">
+            <h3 style="margin-bottom: 15px;">Most Valuable Card</h3>
+            <div style="display: flex; gap: 15px; align-items: center;">
+                <img src="{{ stats.most_valuable.image_small }}" alt="{{ stats.most_valuable.name }}"
+                     style="width: 80px; border-radius: 8px;">
+                <div>
+                    <strong>{{ stats.most_valuable.name }}</strong>
+                    <p class="card-price">${{ "%.2f"|format(stats.most_valuable.price_market or 0) }}</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Strongest Pokémon -->
+        {% if stats.strongest %}
+        <div class="stat-card">
+            <h3 style="margin-bottom: 15px;">Strongest Pokémon</h3>
+            <div style="display: flex; gap: 15px; align-items: center;">
+                <img src="{{ stats.strongest.image_small }}" alt="{{ stats.strongest.name }}"
+                     style="width: 80px; border-radius: 8px;">
+                <div>
+                    <strong>{{ stats.strongest.name }}</strong>
+                    <p style="font-size: 1.2em; color: #cc0000;">HP {{ stats.strongest.hp }}</p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Rarest Card -->
+        {% if stats.rarest %}
+        <div class="stat-card">
+            <h3 style="margin-bottom: 15px;">Rarest Card</h3>
+            <div style="display: flex; gap: 15px; align-items: center;">
+                <img src="{{ stats.rarest.image_small }}" alt="{{ stats.rarest.name }}"
+                     style="width: 80px; border-radius: 8px;">
+                <div>
+                    <strong>{{ stats.rarest.name }}</strong>
+                    <p><span class="card-tag rarity">{{ stats.rarest.rarity }}</span></p>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Type Distribution -->
+    {% if stats.type_distribution %}
+    <div style="margin-top: 30px;">
+        <h3 style="margin-bottom: 15px;">Type Distribution</h3>
+        <div style="display: flex; flex-wrap: wrap; gap: 10px;">
+            {% for type, count in stats.type_distribution.items() %}
+            <div class="card-tag type-{{ type|lower }}" style="padding: 8px 15px;">
+                {{ type }}: {{ count }}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Recent Additions -->
+    {% if stats.recent_cards %}
+    <div style="margin-top: 30px;">
+        <h3 style="margin-bottom: 15px;">Recent Additions</h3>
+        <div class="binder-grid" style="grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));">
+            {% for card in stats.recent_cards[:6] %}
+            <div class="binder-card">
+                <img src="{{ card.image_small }}" alt="{{ card.name }}">
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-state-icon">📊</div>
+        <h3>No Stats Yet</h3>
+        <p>Add some cards to your collection to see analytics!</p>
+        <a href="{{ url_for('scanner') }}" class="pokedex-btn btn-primary" style="margin-top: 20px; display: inline-block; text-decoration: none;">
+            Search Cards
+        </a>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block buttons %}
+<a href="{{ url_for('binder') }}" class="pokedex-btn btn-secondary">View Binder</a>
+<a href="{{ url_for('scanner') }}" class="pokedex-btn btn-primary">Search Cards</a>
+{% endblock %}

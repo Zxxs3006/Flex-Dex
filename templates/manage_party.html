@@ -1,0 +1,448 @@
+{% extends "base.html" %}
+
+{% block title %}Manage Battle Party - FlexDex{% endblock %}
+
+{% block content %}
+<div class="manage-party">
+    <div class="party-header">
+        <h2>Build Your Battle Party</h2>
+        <p>Select up to 6 Pokemon from your collection</p>
+    </div>
+
+    <!-- Current Party -->
+    <div class="current-party">
+        <h3>Your Party <span class="party-count-badge">{{ party_cards|length }}/6</span></h3>
+        <div class="party-slots" id="party-slots">
+            {% for pc in party_cards %}
+            <div class="party-slot filled" data-card-id="{{ pc.card.id }}" data-position="{{ pc.position }}">
+                <img src="{{ pc.card.image_small }}" alt="{{ pc.card.name }}">
+                <div class="slot-info">
+                    <span class="slot-name">{{ pc.card.name }}</span>
+                    <span class="slot-hp">HP {{ pc.card.hp or '?' }}</span>
+                </div>
+                <button class="remove-btn" onclick="removeFromParty({{ pc.card.id }})" title="Remove">X</button>
+            </div>
+            {% endfor %}
+            {% for i in range(6 - party_cards|length) %}
+            <div class="party-slot empty">
+                <span class="slot-number">{{ party_cards|length + i + 1 }}</span>
+                <span class="slot-text">Empty Slot</span>
+            </div>
+            {% endfor %}
+        </div>
+        {% if party_cards|length >= 1 %}
+        <div class="party-stats">
+            <div class="stat">
+                <span class="stat-label">Total HP</span>
+                <span class="stat-value">{{ party.total_hp() }}</span>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Card Selection -->
+    <div class="card-selection">
+        <h3>Your Collection</h3>
+        {% if user_cards %}
+        <div class="filter-bar">
+            <input type="text" id="card-filter" placeholder="Search cards..." onkeyup="filterCards()">
+        </div>
+        <div class="cards-grid" id="cards-grid">
+            {% for uc in user_cards %}
+            {% set in_party = uc.card.id in party_cards|map(attribute='card.id')|list %}
+            <div class="collection-card {{ 'in-party' if in_party else '' }}"
+                 data-card-id="{{ uc.card.id }}"
+                 data-name="{{ uc.card.name|lower }}"
+                 onclick="{% if not in_party %}addToParty({{ uc.card.id }}){% endif %}">
+                <img src="{{ uc.card.image_small }}" alt="{{ uc.card.name }}">
+                <div class="card-overlay">
+                    <span class="card-name">{{ uc.card.name }}</span>
+                    <span class="card-hp">HP {{ uc.card.hp or '?' }}</span>
+                </div>
+                {% if in_party %}
+                <div class="in-party-badge">In Party</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div class="empty-collection">
+            <p>You don't have any cards in your collection yet!</p>
+            <a href="{{ url_for('scanner') }}" class="pokedex-btn btn-primary">Scan Cards</a>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+.manage-party {
+    padding: 15px;
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.party-header {
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.party-header h2 {
+    margin-bottom: 5px;
+}
+
+.party-header p {
+    color: var(--pokedex-gray);
+}
+
+.current-party {
+    background: white;
+    border-radius: 15px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.current-party h3 {
+    margin-bottom: 15px;
+    color: var(--text-dark);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.party-count-badge {
+    background: var(--flex-purple);
+    color: white;
+    padding: 3px 10px;
+    border-radius: 10px;
+    font-size: 0.8em;
+}
+
+.party-slots {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 10px;
+}
+
+@media (max-width: 600px) {
+    .party-slots {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
+
+.party-slot {
+    aspect-ratio: 0.7;
+    border-radius: 10px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.party-slot.empty {
+    background: #f5f5f5;
+    border: 2px dashed #ddd;
+}
+
+.party-slot.empty .slot-number {
+    font-size: 1.5em;
+    font-weight: bold;
+    color: #ccc;
+}
+
+.party-slot.empty .slot-text {
+    font-size: 0.75em;
+    color: #aaa;
+}
+
+.party-slot.filled {
+    border: 2px solid var(--flex-purple);
+    background: #f8f5ff;
+}
+
+.party-slot.filled img {
+    width: 100%;
+    height: 80%;
+    object-fit: cover;
+}
+
+.slot-info {
+    padding: 5px;
+    text-align: center;
+    background: rgba(0,0,0,0.7);
+    width: 100%;
+}
+
+.slot-name {
+    display: block;
+    font-size: 0.7em;
+    color: white;
+    font-weight: bold;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.slot-hp {
+    font-size: 0.65em;
+    color: #aaa;
+}
+
+.remove-btn {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--pokedex-red);
+    color: white;
+    border: none;
+    cursor: pointer;
+    font-size: 0.7em;
+    font-weight: bold;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.party-slot.filled:hover .remove-btn {
+    opacity: 1;
+}
+
+.party-stats {
+    display: flex;
+    justify-content: center;
+    gap: 30px;
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #eee;
+}
+
+.party-stats .stat {
+    text-align: center;
+}
+
+.party-stats .stat-label {
+    display: block;
+    font-size: 0.85em;
+    color: var(--pokedex-gray);
+}
+
+.party-stats .stat-value {
+    font-size: 1.2em;
+    font-weight: bold;
+    color: var(--flex-purple);
+}
+
+.card-selection {
+    background: white;
+    border-radius: 15px;
+    padding: 20px;
+}
+
+.card-selection h3 {
+    margin-bottom: 15px;
+    color: var(--text-dark);
+}
+
+.filter-bar {
+    margin-bottom: 15px;
+}
+
+.filter-bar input {
+    width: 100%;
+    padding: 10px 15px;
+    border: 2px solid #ddd;
+    border-radius: 10px;
+    font-size: 1em;
+}
+
+.filter-bar input:focus {
+    outline: none;
+    border-color: var(--flex-purple);
+}
+
+.cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+    gap: 10px;
+    max-height: 400px;
+    overflow-y: auto;
+    padding: 5px;
+}
+
+.collection-card {
+    position: relative;
+    aspect-ratio: 0.7;
+    border-radius: 8px;
+    overflow: hidden;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.3s ease;
+}
+
+.collection-card:hover {
+    transform: translateY(-3px);
+    border-color: var(--flex-purple);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+.collection-card.in-party {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.collection-card.in-party:hover {
+    transform: none;
+    border-color: transparent;
+    box-shadow: none;
+}
+
+.collection-card img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.card-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 5px;
+    background: linear-gradient(transparent, rgba(0,0,0,0.8));
+}
+
+.card-overlay .card-name {
+    display: block;
+    font-size: 0.7em;
+    color: white;
+    font-weight: bold;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.card-overlay .card-hp {
+    font-size: 0.6em;
+    color: #aaa;
+}
+
+.in-party-badge {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: var(--flex-purple);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-size: 0.7em;
+    font-weight: bold;
+}
+
+.empty-collection {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--pokedex-gray);
+}
+
+.empty-collection p {
+    margin-bottom: 15px;
+}
+
+/* Notification toast */
+.toast {
+    position: fixed;
+    bottom: 100px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--flex-purple);
+    color: white;
+    padding: 12px 25px;
+    border-radius: 25px;
+    font-weight: bold;
+    z-index: 1000;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.toast.show {
+    opacity: 1;
+}
+
+.toast.error {
+    background: var(--pokedex-red);
+}
+</style>
+
+<div class="toast" id="toast"></div>
+
+<script>
+function showToast(message, isError = false) {
+    const toast = document.getElementById('toast');
+    toast.textContent = message;
+    toast.className = 'toast show' + (isError ? ' error' : '');
+    setTimeout(() => {
+        toast.className = 'toast';
+    }, 2500);
+}
+
+function addToParty(cardId) {
+    fetch('/api/party/add', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({card_id: cardId})
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            showToast(data.message);
+            setTimeout(() => location.reload(), 500);
+        } else {
+            showToast(data.error, true);
+        }
+    })
+    .catch(err => showToast('Error adding card', true));
+}
+
+function removeFromParty(cardId) {
+    fetch('/api/party/remove', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({card_id: cardId})
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            showToast('Card removed from party');
+            setTimeout(() => location.reload(), 500);
+        } else {
+            showToast(data.error, true);
+        }
+    })
+    .catch(err => showToast('Error removing card', true));
+}
+
+function filterCards() {
+    const filter = document.getElementById('card-filter').value.toLowerCase();
+    const cards = document.querySelectorAll('.collection-card');
+
+    cards.forEach(card => {
+        const name = card.dataset.name;
+        if (name.includes(filter)) {
+            card.style.display = '';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+</script>
+{% endblock %}
+
+{% block buttons %}
+<a href="{{ url_for('battle_lobby') }}" class="pokedex-btn btn-primary">Battle Lobby</a>
+<a href="{{ url_for('binder') }}" class="pokedex-btn btn-secondary">My Collection</a>
+{% endblock %}

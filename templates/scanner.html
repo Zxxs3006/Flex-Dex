@@ -1,0 +1,171 @@
+{% extends "base.html" %}
+
+{% block title %}PokéLens - FlexDex{% endblock %}
+
+{% block extra_css %}
+<style>
+    .scanner-container {
+        position: relative;
+        width: 100%;
+        max-width: 640px;
+        margin: 0 auto;
+        border-radius: 10px;
+        overflow: hidden;
+        background: #000;
+    }
+    #video-feed {
+        width: 100%;
+        height: auto;
+        display: block;
+    }
+    #canvas-overlay {
+        display: none;
+    }
+    .scan-line {
+        position: absolute;
+        left: 0;
+        width: 100%;
+        height: 3px;
+        background: linear-gradient(90deg, transparent, #00ff00, transparent);
+        box-shadow: 0 0 10px #00ff00;
+        animation: scan 2s linear infinite;
+        opacity: 0;
+        pointer-events: none;
+    }
+    .scanning .scan-line {
+        opacity: 1;
+    }
+    @keyframes scan {
+        0% { top: 0; }
+        100% { top: 100%; }
+    }
+    .camera-placeholder {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 300px;
+        background: #1a1a1a;
+        color: #666;
+        text-align: center;
+    }
+    .mode-tabs {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        margin-bottom: 20px;
+    }
+    .mode-tab {
+        padding: 10px 20px;
+        border: 2px solid #ddd;
+        border-radius: 20px;
+        background: white;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+    .mode-tab.active {
+        background: var(--flex-purple, #8b5cf6);
+        color: white;
+        border-color: var(--flex-purple, #8b5cf6);
+    }
+    .mode-content {
+        display: none;
+    }
+    .mode-content.active {
+        display: block;
+    }
+    .ocr-status {
+        background: #fff3cd;
+        padding: 10px;
+        border-radius: 8px;
+        margin-bottom: 15px;
+        text-align: center;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="scanner-page">
+    <h2 style="text-align: center; margin-bottom: 20px;">📷 PokéLens</h2>
+    <p style="text-align: center; margin-bottom: 20px; color: var(--pokedex-gray);">Scan your cards or search by name</p>
+
+    <!-- Mode Tabs -->
+    <div class="mode-tabs">
+        <button class="mode-tab active" onclick="switchMode('camera')">📷 Camera</button>
+        <button class="mode-tab" onclick="switchMode('search')">🔍 Search</button>
+    </div>
+
+    <!-- Camera Mode -->
+    <div id="camera-mode" class="mode-content active">
+        <div id="ocr-status" class="ocr-status">
+            Loading OCR engine... Please wait.
+        </div>
+
+        <div class="scanner-container" id="scanner-container">
+            <div class="camera-placeholder" id="camera-placeholder">
+                <div>
+                    <p style="font-size: 3em; margin-bottom: 10px;">📷</p>
+                    <p>Click "Start Camera" to begin</p>
+                </div>
+            </div>
+            <video id="video-feed" autoplay playsinline style="display: none;"></video>
+            <canvas id="canvas-overlay"></canvas>
+            <div class="scan-line"></div>
+        </div>
+
+        <div style="text-align: center; margin-top: 15px;">
+            <p id="scanner-status">Ready to scan</p>
+        </div>
+
+        <div style="display: flex; gap: 10px; justify-content: center; margin-top: 15px; flex-wrap: wrap;">
+            <button id="btn-start-camera" class="pokedex-btn btn-primary">Start Camera</button>
+            <button id="btn-capture" class="pokedex-btn btn-success" disabled>Capture & Scan</button>
+            <button id="btn-stop-camera" class="pokedex-btn btn-secondary" disabled>Stop Camera</button>
+        </div>
+
+        <div style="text-align: center; margin-top: 15px;">
+            <label>
+                <input type="checkbox" id="use-back-camera" checked> Use back camera (mobile)
+            </label>
+        </div>
+    </div>
+
+    <!-- Search Mode -->
+    <div id="search-mode" class="mode-content">
+        <div style="max-width: 600px; margin: 0 auto;">
+            <form id="search-form" style="display: flex; gap: 10px; margin-bottom: 20px;">
+                <input type="text" id="search-input" placeholder="Enter Pokémon name..."
+                       style="flex: 1; padding: 12px 20px; border-radius: 25px; border: 2px solid #ddd; font-size: 16px;">
+                <button type="submit" class="pokedex-btn btn-primary">Search</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Results -->
+    <div id="scan-result" style="display: none; margin-top: 20px;">
+        <h3 style="text-align: center; margin-bottom: 15px;">Results</h3>
+        <div class="search-results" id="search-results"></div>
+    </div>
+
+    <div id="selected-card" style="display: none; margin-top: 20px;">
+        <div class="card-display">
+            <div class="pokemon-card card-reveal" id="card-display"></div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block buttons %}
+{% if current_user.is_authenticated %}
+<button id="btn-add-to-binder" class="pokedex-btn btn-success" disabled>Add to Binder</button>
+{% endif %}
+<a href="{{ url_for('index') }}" class="pokedex-btn btn-secondary">Back Home</a>
+{% endblock %}
+
+{% block extra_js %}
+<!-- Tesseract.js for browser-based OCR -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="{{ url_for('static', filename='js/scanner.js') }}"></script>
+<script>
+    const isAuthenticated = {{ 'true' if current_user.is_authenticated else 'false' }};
+</script>
+{% endblock %}

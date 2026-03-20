@@ -1152,6 +1152,26 @@ def battle_room(battle_id):
         BattleTurn.turn_number.desc()
     ).limit(10).all()
 
+    # Get attack data for active Pokemon
+    my_attacks = []
+    opponent_attacks = []
+
+    # Find my active card and get its attacks
+    for pc in my_party_cards:
+        if pc.position == my_active:
+            raw_card = card_lookup.get_card_by_id(pc.card.card_id)
+            if raw_card:
+                my_attacks = raw_card.get('attacks', [])
+            break
+
+    # Find opponent active card and get its attacks
+    for pc in opponent_party_cards:
+        if pc.position == opponent_active:
+            raw_card = card_lookup.get_card_by_id(pc.card.card_id)
+            if raw_card:
+                opponent_attacks = raw_card.get('attacks', [])
+            break
+
     return render_template('battle_room.html',
                           battle=battle,
                           is_player1=is_player1,
@@ -1162,7 +1182,9 @@ def battle_room(battle_id):
                           my_active=my_active,
                           opponent_active=opponent_active,
                           recent_turns=recent_turns,
-                          type_chart=TYPE_CHART)
+                          type_chart=TYPE_CHART,
+                          my_attacks=my_attacks,
+                          opponent_attacks=opponent_attacks)
 
 
 @app.route('/api/battle/<int:battle_id>/state')
@@ -1363,6 +1385,7 @@ def api_battle_attack(battle_id):
         'success': True,
         'message': message,
         'damage': damage,
+        'damage_dealt': damage,
         'effectiveness': effectiveness,
         'was_knockout': was_knockout,
         'battle_won': battle.status == 'completed'

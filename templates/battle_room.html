@@ -6,31 +6,32 @@
 <div class="battle-room" data-battle-id="{{ battle.id }}">
 
     <!-- Battle Header -->
-    <div class="battle-header">
+    <div class="battle-header pixel-border">
         <div class="player-info player1 {{ 'you' if is_player1 else '' }}">
             <span class="player-name">{{ battle.player1.username }}</span>
-            <span class="player-pokemon-count">{{ 6 - battle.get_player1_knocked_out()|length }} Pokemon</span>
+            <span class="player-pokemon-count">{{ 6 - battle.get_player1_knocked_out()|length }} remaining</span>
         </div>
-        <div class="turn-indicator">
+        <div class="turn-indicator pixel-box">
             {% if battle.status == 'waiting' %}
-            <span>Waiting for opponent...</span>
+            <span>WAITING...</span>
             {% elif battle.status == 'completed' %}
-            <span class="battle-over">Battle Over!</span>
+            <span class="battle-over">BATTLE OVER!</span>
             {% else %}
-            <span>Turn {{ battle.current_turn }}</span>
+            <span>TURN {{ battle.current_turn }}</span>
             {% endif %}
         </div>
         <div class="player-info player2 {{ 'you' if not is_player1 else '' }}">
             <span class="player-name">{{ battle.player2.username if battle.player2 else 'Waiting...' }}</span>
-            <span class="player-pokemon-count">{{ 6 - battle.get_player2_knocked_out()|length if battle.player2 else '?' }} Pokemon</span>
+            <span class="player-pokemon-count">{{ 6 - battle.get_player2_knocked_out()|length if battle.player2 else '?' }} remaining</span>
         </div>
     </div>
 
     {% if battle.status == 'active' %}
-    <!-- Battle Arena -->
-    <div class="battle-arena">
-        <!-- Opponent's Active Pokemon -->
-        <div class="pokemon-area opponent">
+    <!-- Battle Arena with Mini Stages -->
+    <div class="battle-arena pixel-arena">
+        <!-- Opponent's Stage -->
+        <div class="battle-stage opponent-stage">
+            <div class="stage-platform"></div>
             {% set opponent_active_card = None %}
             {% for pc in opponent_party_cards %}
                 {% if pc.position == opponent_active %}
@@ -39,25 +40,34 @@
             {% endfor %}
 
             {% if opponent_active_card %}
-            <div class="pokemon-display">
-                <div class="pokemon-info-bar">
+            <div class="pokemon-display" id="opponent-pokemon">
+                <div class="pokemon-info-bar pixel-border">
                     <span class="pokemon-name">{{ opponent_active_card.name }}</span>
-                    <div class="hp-bar-container">
+                    <div class="hp-bar-container pixel-hp">
                         {% set max_hp = opponent_active_card.hp or 100 %}
                         {% set current_hp = opponent_hp.get(opponent_active_card.id|string, max_hp) %}
                         {% set hp_percent = (current_hp / max_hp * 100)|int %}
-                        <div class="hp-bar" style="width: {{ hp_percent }}%"></div>
-                        <span class="hp-text">{{ current_hp }}/{{ max_hp }}</span>
+                        <div class="hp-bar-fill" id="opponent-hp-bar" style="width: {{ hp_percent }}%"
+                             data-hp-percent="{{ hp_percent }}"></div>
                     </div>
+                    <span class="hp-text">{{ current_hp }}/{{ max_hp }} HP</span>
                 </div>
-                <img src="{{ opponent_active_card.image_large or opponent_active_card.image_small }}"
-                     alt="{{ opponent_active_card.name }}" class="pokemon-image opponent-pokemon">
+                <div class="card-container">
+                    <img src="{{ opponent_active_card.image_large or opponent_active_card.image_small }}"
+                         alt="{{ opponent_active_card.name }}" class="pokemon-card-battle opponent-card"
+                         id="opponent-pokemon-card">
+                    <div class="damage-popup" id="opponent-damage-popup"></div>
+                </div>
             </div>
             {% endif %}
         </div>
 
-        <!-- Your Active Pokemon -->
-        <div class="pokemon-area yours">
+        <!-- VS Divider -->
+        <div class="vs-divider pixel-text">VS</div>
+
+        <!-- Your Stage -->
+        <div class="battle-stage your-stage">
+            <div class="stage-platform"></div>
             {% set my_active_card = None %}
             {% for pc in my_party_cards %}
                 {% if pc.position == my_active %}
@@ -66,19 +76,24 @@
             {% endfor %}
 
             {% if my_active_card %}
-            <div class="pokemon-display">
-                <img src="{{ my_active_card.image_large or my_active_card.image_small }}"
-                     alt="{{ my_active_card.name }}" class="pokemon-image your-pokemon">
-                <div class="pokemon-info-bar">
+            <div class="pokemon-display" id="my-pokemon">
+                <div class="card-container">
+                    <img src="{{ my_active_card.image_large or my_active_card.image_small }}"
+                         alt="{{ my_active_card.name }}" class="pokemon-card-battle your-card"
+                         id="my-pokemon-card">
+                    <div class="damage-popup" id="my-damage-popup"></div>
+                </div>
+                <div class="pokemon-info-bar pixel-border">
                     <span class="pokemon-name">{{ my_active_card.name }}</span>
-                    <div class="hp-bar-container">
+                    <div class="hp-bar-container pixel-hp">
                         {% set max_hp = my_active_card.hp or 100 %}
                         {% set current_hp = my_hp.get(my_active_card.id|string, max_hp) %}
                         {% set hp_percent = (current_hp / max_hp * 100)|int %}
-                        <div class="hp-bar {{ 'low' if hp_percent < 25 else 'medium' if hp_percent < 50 else '' }}"
-                             style="width: {{ hp_percent }}%"></div>
-                        <span class="hp-text">{{ current_hp }}/{{ max_hp }}</span>
+                        <div class="hp-bar-fill {{ 'low' if hp_percent < 25 else 'medium' if hp_percent < 50 else '' }}"
+                             id="my-hp-bar" style="width: {{ hp_percent }}%"
+                             data-hp-percent="{{ hp_percent }}"></div>
                     </div>
+                    <span class="hp-text">{{ current_hp }}/{{ max_hp }} HP</span>
                 </div>
             </div>
             {% endif %}
@@ -86,35 +101,62 @@
     </div>
 
     <!-- Action Panel -->
-    <div class="action-panel">
+    <div class="action-panel pixel-border">
         {% if battle.is_player_turn(current_user.id) %}
-        <div class="turn-alert">Your Turn!</div>
+        <div class="turn-alert pixel-text">YOUR TURN!</div>
 
         <div class="action-buttons">
-            <button class="action-btn attack" onclick="showAttacks()">Attack</button>
-            <button class="action-btn switch" onclick="showSwitch()">Switch</button>
-            <button class="action-btn forfeit" onclick="confirmForfeit()">Forfeit</button>
+            <button class="action-btn attack pixel-btn" onclick="showAttacks()">ATTACK</button>
+            <button class="action-btn switch pixel-btn" onclick="showSwitch()">SWITCH</button>
+            <button class="action-btn forfeit pixel-btn" onclick="confirmForfeit()">FORFEIT</button>
         </div>
 
-        <!-- Attack Selection (hidden by default) -->
+        <!-- Attack Selection with Real Attacks -->
         <div class="attack-selection" id="attack-selection" style="display: none;">
-            <h4>Choose Attack</h4>
+            <h4 class="pixel-text">Choose Attack</h4>
             <div class="attacks-list" id="attacks-list">
-                <!-- Populated by JavaScript -->
-                <button class="attack-option" onclick="executeAttack(0)">Attack 1</button>
-                <button class="attack-option" onclick="executeAttack(1)">Attack 2</button>
+                {% if my_attacks %}
+                    {% for attack in my_attacks %}
+                    <button class="attack-option pixel-btn" onclick="executeAttack({{ loop.index0 }})">
+                        <div class="attack-main">
+                            <span class="attack-name">{{ attack.name }}</span>
+                            <span class="attack-damage">{{ attack.damage or '-' }}</span>
+                        </div>
+                        <div class="attack-cost">
+                            {% if attack.cost %}
+                                {% for cost in attack.cost %}
+                                <span class="energy-icon {{ cost|lower }}"></span>
+                                {% endfor %}
+                            {% endif %}
+                        </div>
+                        {% if attack.text %}
+                        <div class="attack-effect">{{ attack.text[:60] }}{% if attack.text|length > 60 %}...{% endif %}</div>
+                        {% endif %}
+                    </button>
+                    {% endfor %}
+                {% else %}
+                    <button class="attack-option pixel-btn" onclick="executeAttack(0)">
+                        <div class="attack-main">
+                            <span class="attack-name">Tackle</span>
+                            <span class="attack-damage">30</span>
+                        </div>
+                        <div class="attack-cost">
+                            <span class="energy-icon colorless"></span>
+                        </div>
+                    </button>
+                {% endif %}
             </div>
-            <button class="cancel-btn" onclick="hideMenus()">Cancel</button>
+            <button class="cancel-btn pixel-btn" onclick="hideMenus()">CANCEL</button>
         </div>
 
-        <!-- Switch Selection (hidden by default) -->
+        <!-- Switch Selection -->
         <div class="switch-selection" id="switch-selection" style="display: none;">
-            <h4>Switch Pokemon</h4>
+            <h4 class="pixel-text">Switch Pokemon</h4>
             <div class="switch-list">
                 {% for pc in my_party_cards %}
                     {% if pc.position != my_active and pc.card.id not in (battle.get_player1_knocked_out() if is_player1 else battle.get_player2_knocked_out()) %}
                     {% set card_hp = my_hp.get(pc.card.id|string, pc.card.hp or 100) %}
-                    <div class="switch-option" onclick="executeSwitch({{ pc.position }})">
+                    <div class="switch-option pixel-border" onclick="executeSwitch({{ pc.position }})">
                         <img src="{{ pc.card.image_small }}" alt="{{ pc.card.name }}">
                         <div class="switch-info">
                             <span class="switch-name">{{ pc.card.name }}</span>
@@ -124,37 +166,39 @@
                     {% endif %}
                 {% endfor %}
             </div>
-            <button class="cancel-btn" onclick="hideMenus()">Cancel</button>
+            <button class="cancel-btn pixel-btn" onclick="hideMenus()">CANCEL</button>
         </div>
         {% else %}
-        <div class="waiting-turn">Waiting for opponent's move...</div>
+        <div class="waiting-turn pixel-text">Waiting for opponent's move...</div>
         {% endif %}
     </div>
 
     {% elif battle.status == 'completed' %}
     <!-- Battle Results -->
-    <div class="battle-results">
-        <h2>{{ 'Victory!' if battle.winner_id == current_user.id else 'Defeat' }}</h2>
-        <div class="result-icon">{{ 'W' if battle.winner_id == current_user.id else 'L' }}</div>
+    <div class="battle-results pixel-border">
+        <h2 class="pixel-text result-title {{ 'victory' if battle.winner_id == current_user.id else 'defeat' }}">
+            {{ 'VICTORY!' if battle.winner_id == current_user.id else 'DEFEAT' }}
+        </h2>
+        <div class="result-icon pixel-box">{{ 'W' if battle.winner_id == current_user.id else 'L' }}</div>
         <p>Winner: {{ battle.winner.username }}</p>
-        <a href="{{ url_for('battle_lobby') }}" class="pokedex-btn btn-primary">Back to Lobby</a>
+        <a href="{{ url_for('battle_lobby') }}" class="pokedex-btn btn-primary pixel-btn">BACK TO LOBBY</a>
     </div>
 
     {% elif battle.status == 'waiting' %}
     <!-- Waiting for opponent -->
-    <div class="waiting-screen">
+    <div class="waiting-screen pixel-border">
         <div class="waiting-animation">
-            <div class="pokeball"></div>
+            <div class="pokeball pixel-pokeball"></div>
         </div>
-        <h3>Waiting for an opponent...</h3>
+        <h3 class="pixel-text">Waiting for opponent...</h3>
         <p>Share your battle link or wait for someone to join!</p>
-        <button class="pokedex-btn btn-secondary" onclick="confirmForfeit()">Cancel Battle</button>
+        <button class="pokedex-btn btn-secondary pixel-btn" onclick="confirmForfeit()">CANCEL BATTLE</button>
     </div>
     {% endif %}
 
     <!-- Battle Log -->
-    <div class="battle-log" id="battle-log">
-        <h4>Battle Log</h4>
+    <div class="battle-log pixel-border" id="battle-log">
+        <h4 class="pixel-text">Battle Log</h4>
         <div class="log-entries" id="log-entries">
             {% for turn in recent_turns|reverse %}
             <div class="log-entry {{ 'damage' if turn.damage_dealt else '' }} {{ 'knockout' if turn.was_knockout else '' }}">
@@ -166,6 +210,17 @@
 </div>
 
 <style>
+/* ==================== */
+/* PIXEL FONT & BASE */
+/* ==================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+.pixel-text {
+    font-family: 'Press Start 2P', monospace;
+    text-transform: uppercase;
+}
+
 .battle-room {
     padding: 10px;
     max-width: 600px;
@@ -173,20 +228,77 @@
     min-height: 80vh;
     display: flex;
     flex-direction: column;
+    gap: 10px;
 }
+
+/* ==================== */
+/* PIXEL BORDERS & BOXES */
+/* ==================== */
+
+.pixel-border {
+    border: 4px solid #222;
+    box-shadow:
+        inset -4px -4px 0px 0px #555,
+        inset 4px 4px 0px 0px #888,
+        0 4px 0 #111;
+    background: linear-gradient(180deg, #f0f0f0 0%, #d0d0d0 100%);
+}
+
+.pixel-box {
+    background: linear-gradient(180deg, #ffd700 0%, #ff8c00 100%);
+    border: 3px solid #222;
+    box-shadow:
+        inset -2px -2px 0px 0px #cc6600,
+        inset 2px 2px 0px 0px #ffee88;
+    padding: 5px 15px;
+    font-family: 'Press Start 2P', monospace;
+    font-size: 0.7em;
+}
+
+.pixel-btn {
+    font-family: 'Press Start 2P', monospace;
+    border: 3px solid #222;
+    box-shadow:
+        inset -2px -2px 0px 0px rgba(0,0,0,0.3),
+        inset 2px 2px 0px 0px rgba(255,255,255,0.3),
+        0 3px 0 #111;
+    cursor: pointer;
+    transition: all 0.1s ease;
+    text-transform: uppercase;
+    font-size: 0.7em;
+}
+
+.pixel-btn:hover {
+    transform: translateY(-2px);
+    box-shadow:
+        inset -2px -2px 0px 0px rgba(0,0,0,0.3),
+        inset 2px 2px 0px 0px rgba(255,255,255,0.3),
+        0 5px 0 #111;
+}
+
+.pixel-btn:active {
+    transform: translateY(2px);
+    box-shadow:
+        inset -2px -2px 0px 0px rgba(0,0,0,0.3),
+        inset 2px 2px 0px 0px rgba(255,255,255,0.3),
+        0 1px 0 #111;
+}
+
+/* ==================== */
+/* BATTLE HEADER */
+/* ==================== */
 
 .battle-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: white;
-    border-radius: 15px;
     padding: 10px 15px;
-    margin-bottom: 10px;
+    background: linear-gradient(180deg, #e8e8e8 0%, #c8c8c8 100%);
 }
 
 .player-info {
     text-align: center;
+    min-width: 100px;
 }
 
 .player-info.you {
@@ -194,138 +306,293 @@
 }
 
 .player-info.you .player-name {
-    color: var(--flex-purple);
+    color: #6b46c1;
+    text-shadow: 1px 1px 0 #fff;
 }
 
 .player-name {
     display: block;
-    font-size: 1em;
+    font-size: 0.85em;
+    font-weight: bold;
+    margin-bottom: 3px;
 }
 
 .player-pokemon-count {
-    font-size: 0.75em;
-    color: var(--pokedex-gray);
+    font-size: 0.65em;
+    color: #666;
 }
 
 .turn-indicator {
-    background: var(--pokedex-gold);
-    color: white;
-    padding: 5px 15px;
-    border-radius: 15px;
-    font-weight: bold;
-    font-size: 0.9em;
-}
-
-.battle-over {
-    color: white;
-}
-
-.battle-arena {
-    flex: 1;
-    background: linear-gradient(180deg, #87CEEB 0%, #98FB98 50%, #8B4513 100%);
-    border-radius: 15px;
-    padding: 20px;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    min-height: 350px;
-    position: relative;
-    overflow: hidden;
-}
-
-.pokemon-area {
-    display: flex;
-    justify-content: center;
-}
-
-.pokemon-area.opponent {
-    justify-content: flex-end;
-    padding-right: 20px;
-}
-
-.pokemon-area.yours {
-    justify-content: flex-start;
-    padding-left: 20px;
-}
-
-.pokemon-display {
     text-align: center;
 }
 
-.pokemon-image {
-    max-width: 150px;
-    max-height: 200px;
-    filter: drop-shadow(0 5px 10px rgba(0,0,0,0.3));
+.battle-over {
+    color: #ff0000;
+    animation: blink 0.5s infinite;
 }
 
-.opponent-pokemon {
-    transform: scaleX(-1);
+@keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
 }
+
+/* ==================== */
+/* BATTLE ARENA - PIXEL STYLE */
+/* ==================== */
+
+.battle-arena {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    min-height: 400px;
+    position: relative;
+    overflow: hidden;
+    border: 4px solid #222;
+    box-shadow: 0 4px 0 #111;
+}
+
+.pixel-arena {
+    background:
+        /* Sky gradient */
+        linear-gradient(180deg,
+            #87ceeb 0%,
+            #98d8e8 30%,
+            #a8e8a8 50%,
+            #78b878 70%,
+            #5a9a5a 100%);
+    image-rendering: pixelated;
+    position: relative;
+}
+
+/* Pixel grass pattern overlay */
+.pixel-arena::before {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 40%;
+    background:
+        repeating-linear-gradient(90deg,
+            #4a8a4a 0px, #4a8a4a 8px,
+            #5a9a5a 8px, #5a9a5a 16px
+        ),
+        repeating-linear-gradient(0deg,
+            transparent 0px, transparent 4px,
+            rgba(0,0,0,0.1) 4px, rgba(0,0,0,0.1) 8px
+        );
+    image-rendering: pixelated;
+}
+
+/* ==================== */
+/* BATTLE STAGES */
+/* ==================== */
+
+.battle-stage {
+    position: relative;
+    z-index: 2;
+    padding: 15px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.opponent-stage {
+    justify-content: flex-end;
+    padding-right: 30px;
+}
+
+.your-stage {
+    justify-content: flex-start;
+    padding-left: 30px;
+}
+
+.stage-platform {
+    position: absolute;
+    width: 120px;
+    height: 20px;
+    background: linear-gradient(180deg, #8b6914 0%, #6b4914 50%, #4b3914 100%);
+    border: 3px solid #222;
+    border-radius: 50%;
+    bottom: 10px;
+    box-shadow:
+        0 4px 0 #222,
+        inset 0 -5px 10px rgba(0,0,0,0.3);
+}
+
+.opponent-stage .stage-platform {
+    right: 40px;
+}
+
+.your-stage .stage-platform {
+    left: 40px;
+}
+
+/* ==================== */
+/* POKEMON DISPLAY */
+/* ==================== */
+
+.pokemon-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    position: relative;
+    z-index: 3;
+}
+
+.opponent-stage .pokemon-display {
+    flex-direction: column;
+}
+
+.your-stage .pokemon-display {
+    flex-direction: column-reverse;
+}
+
+.card-container {
+    position: relative;
+}
+
+.pokemon-card-battle {
+    max-width: 130px;
+    max-height: 180px;
+    border-radius: 8px;
+    box-shadow:
+        0 5px 15px rgba(0,0,0,0.4),
+        0 0 0 3px #222;
+    transition: transform 0.3s ease;
+    /* Keep cards crisp, not pixelated */
+    image-rendering: auto;
+}
+
+.opponent-card {
+    transform: perspective(500px) rotateY(-5deg);
+}
+
+.your-card {
+    transform: perspective(500px) rotateY(5deg);
+}
+
+/* ==================== */
+/* POKEMON INFO BAR */
+/* ==================== */
 
 .pokemon-info-bar {
-    background: rgba(255,255,255,0.9);
-    border-radius: 10px;
-    padding: 8px 15px;
-    min-width: 180px;
+    padding: 8px 12px;
+    min-width: 160px;
+    text-align: center;
 }
 
 .pokemon-name {
     display: block;
     font-weight: bold;
+    font-size: 0.85em;
     margin-bottom: 5px;
+    color: #222;
 }
 
+/* ==================== */
+/* PIXEL HP BAR */
+/* ==================== */
+
 .hp-bar-container {
-    background: #ddd;
-    border-radius: 10px;
-    height: 18px;
+    height: 16px;
+    background: #222;
+    border: 2px solid #000;
     position: relative;
     overflow: hidden;
 }
 
-.hp-bar {
-    background: linear-gradient(90deg, #4CAF50, #8BC34A);
+.pixel-hp {
+    box-shadow: inset 0 0 0 2px #444;
+}
+
+.hp-bar-fill {
     height: 100%;
-    border-radius: 10px;
+    background: linear-gradient(180deg, #00ff00 0%, #00cc00 50%, #009900 100%);
     transition: width 0.5s ease;
+    position: relative;
 }
 
-.hp-bar.medium {
-    background: linear-gradient(90deg, #FFC107, #FFD54F);
+.hp-bar-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 50%;
+    background: rgba(255,255,255,0.3);
 }
 
-.hp-bar.low {
-    background: linear-gradient(90deg, #f44336, #FF5722);
+.hp-bar-fill.medium {
+    background: linear-gradient(180deg, #ffff00 0%, #cccc00 50%, #999900 100%);
+}
+
+.hp-bar-fill.low {
+    background: linear-gradient(180deg, #ff0000 0%, #cc0000 50%, #990000 100%);
+    animation: hp-low-pulse 0.5s infinite;
+}
+
+@keyframes hp-low-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
 }
 
 .hp-text {
+    font-size: 0.7em;
+    font-weight: bold;
+    color: #333;
+    margin-top: 3px;
+    display: block;
+}
+
+/* ==================== */
+/* VS DIVIDER */
+/* ==================== */
+
+.vs-divider {
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    font-size: 0.75em;
-    font-weight: bold;
-    color: #333;
+    font-size: 1.5em;
+    color: #fff;
+    text-shadow:
+        -2px -2px 0 #000,
+        2px -2px 0 #000,
+        -2px 2px 0 #000,
+        2px 2px 0 #000,
+        0 0 10px rgba(255,0,0,0.5);
+    z-index: 10;
+    animation: vs-pulse 1s infinite;
 }
 
+@keyframes vs-pulse {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); }
+    50% { transform: translate(-50%, -50%) scale(1.1); }
+}
+
+/* ==================== */
+/* ACTION PANEL */
+/* ==================== */
+
 .action-panel {
-    background: white;
-    border-radius: 15px;
     padding: 15px;
-    margin-top: 10px;
+    background: linear-gradient(180deg, #e8e8e8 0%, #c8c8c8 100%);
 }
 
 .turn-alert {
     text-align: center;
-    font-weight: bold;
-    color: var(--pokedex-green);
+    font-size: 0.9em;
+    color: #00aa00;
     margin-bottom: 10px;
-    animation: pulse 1s infinite;
+    animation: turn-flash 1s infinite;
 }
 
-@keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.6; }
+@keyframes turn-flash {
+    0%, 100% { opacity: 1; text-shadow: 0 0 10px #00ff00; }
+    50% { opacity: 0.8; text-shadow: 0 0 5px #00ff00; }
 }
 
 .action-buttons {
@@ -335,44 +602,38 @@
 
 .action-btn {
     flex: 1;
-    padding: 15px;
-    border: none;
-    border-radius: 10px;
-    font-weight: bold;
-    font-size: 1em;
-    cursor: pointer;
-    transition: all 0.3s ease;
+    padding: 15px 10px;
+    border-radius: 0;
+    font-size: 0.65em;
+    color: white;
 }
 
 .action-btn.attack {
-    background: var(--pokedex-red);
-    color: white;
+    background: linear-gradient(180deg, #ff6b6b 0%, #cc0000 100%);
 }
 
 .action-btn.switch {
-    background: var(--flex-purple);
-    color: white;
+    background: linear-gradient(180deg, #9b59b6 0%, #6b3a96 100%);
 }
 
 .action-btn.forfeit {
-    background: #666;
-    color: white;
+    background: linear-gradient(180deg, #666 0%, #444 100%);
 }
 
-.action-btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-}
+/* ==================== */
+/* ATTACK SELECTION - REAL ATTACKS */
+/* ==================== */
 
 .attack-selection, .switch-selection {
     margin-top: 15px;
     padding-top: 15px;
-    border-top: 1px solid #eee;
+    border-top: 3px solid #222;
 }
 
 .attack-selection h4, .switch-selection h4 {
     margin-bottom: 10px;
-    color: var(--text-dark);
+    font-size: 0.7em;
+    color: #222;
 }
 
 .attacks-list {
@@ -383,23 +644,88 @@
 
 .attack-option {
     padding: 12px 15px;
-    background: linear-gradient(145deg, #ff6b6b, #ee5a5a);
+    background: linear-gradient(180deg, #4a4a4a 0%, #2a2a2a 100%);
     color: white;
-    border: none;
-    border-radius: 8px;
-    font-weight: bold;
-    cursor: pointer;
     text-align: left;
-    transition: all 0.3s;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
 }
 
 .attack-option:hover {
-    background: linear-gradient(145deg, #ff5252, #e53935);
+    background: linear-gradient(180deg, #5a5a5a 0%, #3a3a3a 100%);
 }
+
+.attack-main {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.attack-name {
+    font-size: 0.9em;
+    text-transform: uppercase;
+}
+
+.attack-damage {
+    color: #ff6b6b;
+    font-size: 1.1em;
+    font-weight: bold;
+    min-width: 40px;
+    text-align: right;
+}
+
+.attack-cost {
+    display: flex;
+    gap: 4px;
+}
+
+.energy-icon {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    display: inline-block;
+    border: 2px solid #222;
+    box-shadow: inset 0 -2px 0 rgba(0,0,0,0.3);
+}
+
+.energy-icon.fire { background: radial-gradient(circle at 30% 30%, #ff9955, #ff4400); }
+.energy-icon.water { background: radial-gradient(circle at 30% 30%, #55aaff, #0066cc); }
+.energy-icon.grass { background: radial-gradient(circle at 30% 30%, #88dd66, #228822); }
+.energy-icon.lightning { background: radial-gradient(circle at 30% 30%, #ffee55, #ccaa00); }
+.energy-icon.electric { background: radial-gradient(circle at 30% 30%, #ffee55, #ccaa00); }
+.energy-icon.psychic { background: radial-gradient(circle at 30% 30%, #ff88cc, #aa44aa); }
+.energy-icon.fighting { background: radial-gradient(circle at 30% 30%, #cc8866, #884422); }
+.energy-icon.darkness { background: radial-gradient(circle at 30% 30%, #666688, #222244); }
+.energy-icon.dark { background: radial-gradient(circle at 30% 30%, #666688, #222244); }
+.energy-icon.metal { background: radial-gradient(circle at 30% 30%, #ccccdd, #888899); }
+.energy-icon.steel { background: radial-gradient(circle at 30% 30%, #ccccdd, #888899); }
+.energy-icon.fairy { background: radial-gradient(circle at 30% 30%, #ffaacc, #ee77aa); }
+.energy-icon.dragon { background: radial-gradient(circle at 30% 30%, #8866ee, #5533aa); }
+.energy-icon.colorless { background: radial-gradient(circle at 30% 30%, #eeeeee, #aaaaaa); }
+
+.attack-effect {
+    font-size: 0.6em;
+    color: #aaa;
+    font-style: italic;
+    text-transform: none;
+}
+
+.cancel-btn {
+    margin-top: 10px;
+    padding: 10px 20px;
+    background: linear-gradient(180deg, #888 0%, #666 100%);
+    color: white;
+    width: 100%;
+}
+
+/* ==================== */
+/* SWITCH SELECTION */
+/* ==================== */
 
 .switch-list {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
     gap: 10px;
 }
 
@@ -408,14 +734,13 @@
     align-items: center;
     gap: 10px;
     padding: 10px;
-    background: #f5f5f5;
-    border-radius: 10px;
+    background: linear-gradient(180deg, #f8f8f8 0%, #e0e0e0 100%);
     cursor: pointer;
-    transition: all 0.3s;
+    transition: all 0.2s;
 }
 
 .switch-option:hover {
-    background: #e8e5ff;
+    background: linear-gradient(180deg, #e8e5ff 0%, #d0ccff 100%);
     transform: translateY(-2px);
 }
 
@@ -424,6 +749,7 @@
     height: 70px;
     object-fit: cover;
     border-radius: 5px;
+    border: 2px solid #222;
 }
 
 .switch-info {
@@ -433,66 +759,90 @@
 .switch-name {
     display: block;
     font-weight: bold;
-    font-size: 0.9em;
+    font-size: 0.75em;
+    color: #222;
 }
 
 .switch-hp {
-    font-size: 0.8em;
-    color: var(--pokedex-gray);
+    font-size: 0.65em;
+    color: #666;
 }
 
-.cancel-btn {
-    margin-top: 10px;
-    padding: 10px 20px;
-    background: #ddd;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-}
+/* ==================== */
+/* WAITING TURN */
+/* ==================== */
 
 .waiting-turn {
     text-align: center;
     padding: 20px;
-    color: var(--pokedex-gray);
-    font-style: italic;
+    font-size: 0.7em;
+    color: #666;
 }
 
+/* ==================== */
+/* BATTLE RESULTS */
+/* ==================== */
+
 .battle-results {
-    background: white;
-    border-radius: 15px;
     padding: 40px;
     text-align: center;
+    background: linear-gradient(180deg, #f0f0f0 0%, #d0d0d0 100%);
     margin: 20px 0;
 }
 
-.battle-results h2 {
-    font-size: 2em;
-    margin-bottom: 10px;
+.result-title {
+    font-size: 1.5em;
+    margin-bottom: 20px;
+}
+
+.result-title.victory {
+    color: #00aa00;
+    text-shadow: 2px 2px 0 #005500;
+    animation: victory-flash 0.5s infinite;
+}
+
+.result-title.defeat {
+    color: #cc0000;
+    text-shadow: 2px 2px 0 #660000;
+}
+
+@keyframes victory-flash {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.8; }
 }
 
 .result-icon {
     width: 80px;
     height: 80px;
-    border-radius: 50%;
+    border-radius: 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 2.5em;
+    font-size: 2em;
     font-weight: bold;
     margin: 20px auto;
+    border: 4px solid #222;
+    box-shadow: 0 4px 0 #111;
 }
 
-.battle-results h2:contains('Victory') + .result-icon,
-.result-icon {
-    background: var(--pokedex-green);
+.result-title.victory + .result-icon {
+    background: linear-gradient(180deg, #00ff00 0%, #00aa00 100%);
     color: white;
 }
 
+.result-title.defeat + .result-icon {
+    background: linear-gradient(180deg, #ff0000 0%, #aa0000 100%);
+    color: white;
+}
+
+/* ==================== */
+/* WAITING SCREEN */
+/* ==================== */
+
 .waiting-screen {
-    background: white;
-    border-radius: 15px;
     padding: 40px;
     text-align: center;
+    background: linear-gradient(180deg, #f0f0f0 0%, #d0d0d0 100%);
     margin: 20px 0;
 }
 
@@ -500,85 +850,302 @@
     margin-bottom: 20px;
 }
 
-.pokeball {
+.pixel-pokeball {
     width: 60px;
     height: 60px;
     margin: 0 auto;
-    border-radius: 50%;
-    background: linear-gradient(180deg, #f44336 50%, white 50%);
-    border: 4px solid #333;
     position: relative;
-    animation: bounce 1s infinite;
+    animation: pokeball-bounce 0.5s ease-in-out infinite alternate;
+    image-rendering: pixelated;
 }
 
-.pokeball::before {
+.pixel-pokeball::before {
     content: '';
     position: absolute;
-    top: 50%;
-    left: 0;
-    right: 0;
-    height: 4px;
-    background: #333;
-    transform: translateY(-50%);
+    width: 100%;
+    height: 50%;
+    background: #ff0000;
+    border-radius: 60px 60px 0 0;
+    top: 0;
+    border: 4px solid #222;
+    border-bottom: none;
+    box-sizing: border-box;
 }
 
-.pokeball::after {
+.pixel-pokeball::after {
     content: '';
     position: absolute;
-    top: 50%;
-    left: 50%;
-    width: 16px;
-    height: 16px;
-    background: white;
-    border: 3px solid #333;
-    border-radius: 50%;
-    transform: translate(-50%, -50%);
+    width: 100%;
+    height: 50%;
+    background: #fff;
+    border-radius: 0 0 60px 60px;
+    bottom: 0;
+    border: 4px solid #222;
+    border-top: 2px solid #222;
+    box-sizing: border-box;
 }
 
-@keyframes bounce {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-15px); }
+@keyframes pokeball-bounce {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(-15px); }
 }
+
+.waiting-screen h3 {
+    font-size: 0.8em;
+    margin-bottom: 10px;
+}
+
+/* ==================== */
+/* BATTLE LOG */
+/* ==================== */
 
 .battle-log {
-    background: white;
-    border-radius: 15px;
     padding: 15px;
-    margin-top: 10px;
+    background: linear-gradient(180deg, #e8e8e8 0%, #c8c8c8 100%);
 }
 
 .battle-log h4 {
     margin-bottom: 10px;
-    color: var(--text-dark);
+    font-size: 0.7em;
+    color: #222;
 }
 
 .log-entries {
-    max-height: 150px;
+    max-height: 120px;
     overflow-y: auto;
+    font-size: 0.85em;
 }
 
 .log-entry {
-    padding: 8px 10px;
-    margin: 5px 0;
+    padding: 6px 10px;
+    margin: 4px 0;
     background: #f5f5f5;
-    border-radius: 8px;
-    font-size: 0.9em;
+    border: 2px solid #ccc;
+    font-size: 0.85em;
 }
 
 .log-entry.damage {
-    border-left: 3px solid var(--pokedex-red);
+    border-left: 4px solid #cc0000;
+    background: #fff0f0;
 }
 
 .log-entry.knockout {
-    background: #ffe5e5;
-    border-left: 3px solid #f44336;
+    background: #ffcccc;
+    border: 2px solid #cc0000;
     font-weight: bold;
+    animation: knockout-log 0.5s ease;
+}
+
+@keyframes knockout-log {
+    0% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+/* ==================== */
+/* BATTLE ANIMATIONS */
+/* ==================== */
+
+/* Attack Animation */
+@keyframes attack-lunge {
+    0% { transform: translateX(0) perspective(500px) rotateY(5deg); }
+    30% { transform: translateX(30px) perspective(500px) rotateY(5deg) scale(1.1); }
+    100% { transform: translateX(0) perspective(500px) rotateY(5deg) scale(1); }
+}
+
+@keyframes attack-lunge-opponent {
+    0% { transform: translateX(0) perspective(500px) rotateY(-5deg); }
+    30% { transform: translateX(-30px) perspective(500px) rotateY(-5deg) scale(1.1); }
+    100% { transform: translateX(0) perspective(500px) rotateY(-5deg) scale(1); }
+}
+
+/* Damage Animation */
+@keyframes take-damage {
+    0%, 100% { transform: translateX(0); filter: brightness(1); }
+    15% { transform: translateX(-8px); filter: brightness(2) saturate(0); }
+    30% { transform: translateX(8px); filter: brightness(0.5); }
+    45% { transform: translateX(-6px); filter: brightness(1.5); }
+    60% { transform: translateX(6px); filter: brightness(0.8); }
+    75% { transform: translateX(-3px); }
+}
+
+/* Damage Popup */
+@keyframes damage-popup {
+    0% { opacity: 0; transform: translateY(0) scale(0.5); }
+    20% { opacity: 1; transform: translateY(-20px) scale(1.3); }
+    100% { opacity: 0; transform: translateY(-60px) scale(1); }
+}
+
+/* Knockout Animation */
+@keyframes knockout {
+    0% { opacity: 1; transform: rotate(0deg) scale(1); }
+    50% { transform: rotate(180deg) scale(0.8); }
+    100% { opacity: 0; transform: rotate(360deg) scale(0) translateY(50px); }
+}
+
+/* Switch Animations */
+@keyframes card-switch-out {
+    0% { opacity: 1; transform: translateX(0) scale(1); }
+    100% { opacity: 0; transform: translateX(-80px) scale(0.8); }
+}
+
+@keyframes card-switch-in {
+    0% { opacity: 0; transform: translateX(80px) scale(0.8); }
+    70% { transform: translateX(-10px) scale(1.05); }
+    100% { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+/* Screen Shake */
+@keyframes screen-shake {
+    0%, 100% { transform: translateX(0); }
+    10% { transform: translateX(-5px); }
+    20% { transform: translateX(5px); }
+    30% { transform: translateX(-4px); }
+    40% { transform: translateX(4px); }
+    50% { transform: translateX(-3px); }
+    60% { transform: translateX(3px); }
+    70% { transform: translateX(-2px); }
+    80% { transform: translateX(2px); }
+}
+
+/* Apply animation classes */
+.attacking {
+    animation: attack-lunge 0.5s ease-out;
+}
+
+.opponent-card.attacking {
+    animation: attack-lunge-opponent 0.5s ease-out;
+}
+
+.taking-damage {
+    animation: take-damage 0.5s ease-out;
+}
+
+.switching-out {
+    animation: card-switch-out 0.3s forwards;
+}
+
+.switching-in {
+    animation: card-switch-in 0.4s ease-out forwards;
+}
+
+.knocked-out {
+    animation: knockout 0.8s ease-in forwards;
+}
+
+.screen-shake {
+    animation: screen-shake 0.4s ease-out;
+}
+
+/* Damage Popup Element */
+.damage-popup {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 1.5em;
+    color: #ff0000;
+    text-shadow:
+        -2px -2px 0 #fff,
+        2px -2px 0 #fff,
+        -2px 2px 0 #fff,
+        2px 2px 0 #fff,
+        0 0 10px rgba(255,0,0,0.5);
+    pointer-events: none;
+    z-index: 100;
+    opacity: 0;
+}
+
+.damage-popup.show {
+    animation: damage-popup 1s ease-out forwards;
+}
+
+/* KO Text */
+.ko-text {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-family: 'Press Start 2P', monospace;
+    font-size: 3em;
+    color: #ff0000;
+    text-shadow:
+        -3px -3px 0 #fff,
+        3px -3px 0 #fff,
+        -3px 3px 0 #fff,
+        3px 3px 0 #fff,
+        0 0 20px rgba(255,0,0,0.8);
+    z-index: 1000;
+    animation: ko-appear 1.5s ease-out forwards;
+}
+
+@keyframes ko-appear {
+    0% { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+    20% { opacity: 1; transform: translate(-50%, -50%) scale(1.5); }
+    40% { transform: translate(-50%, -50%) scale(1.2); }
+    60% { transform: translate(-50%, -50%) scale(1.3); }
+    100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* ==================== */
+/* RESPONSIVE */
+/* ==================== */
+
+@media (max-width: 480px) {
+    .battle-header {
+        padding: 8px 10px;
+    }
+
+    .player-name {
+        font-size: 0.7em;
+    }
+
+    .player-pokemon-count {
+        font-size: 0.55em;
+    }
+
+    .pixel-box {
+        padding: 4px 10px;
+        font-size: 0.6em;
+    }
+
+    .pokemon-card-battle {
+        max-width: 100px;
+        max-height: 140px;
+    }
+
+    .pokemon-info-bar {
+        min-width: 120px;
+        padding: 6px 8px;
+    }
+
+    .pokemon-name {
+        font-size: 0.7em;
+    }
+
+    .action-btn {
+        padding: 12px 8px;
+        font-size: 0.55em;
+    }
+
+    .attack-name {
+        font-size: 0.75em;
+    }
+
+    .vs-divider {
+        font-size: 1em;
+    }
 }
 </style>
 
 <script>
 const battleId = {{ battle.id }};
 let pollInterval;
+let isAnimating = false;
+
+function sleep(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
 
 function showAttacks() {
     document.getElementById('attack-selection').style.display = 'block';
@@ -595,60 +1162,149 @@ function hideMenus() {
     document.getElementById('switch-selection').style.display = 'none';
 }
 
-function executeAttack(attackIndex) {
-    fetch(`/api/battle/${battleId}/attack`, {
+async function executeAttack(attackIndex) {
+    if (isAnimating) return;
+    isAnimating = true;
+
+    const myCard = document.getElementById('my-pokemon-card');
+    const oppCard = document.getElementById('opponent-pokemon-card');
+    const arena = document.querySelector('.battle-arena');
+
+    // Hide menus
+    hideMenus();
+
+    // Play attack animation on my card
+    myCard.classList.add('attacking');
+    await sleep(300);
+
+    // Send attack to server
+    const response = await fetch(`/api/battle/${battleId}/attack`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({attack_index: attackIndex})
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.success) {
-            addLogEntry(data.message, data.was_knockout);
-            setTimeout(() => location.reload(), 1000);
-        } else {
-            alert(data.error);
-        }
     });
+    const data = await response.json();
+
+    myCard.classList.remove('attacking');
+
+    if (data.success) {
+        // Screen shake
+        arena.classList.add('screen-shake');
+
+        // Play damage animation on opponent
+        oppCard.classList.add('taking-damage');
+        showDamagePopup('opponent', data.damage_dealt);
+
+        await sleep(500);
+        arena.classList.remove('screen-shake');
+        oppCard.classList.remove('taking-damage');
+
+        if (data.was_knockout) {
+            // KO animation
+            oppCard.classList.add('knocked-out');
+            showKOText();
+            await sleep(1000);
+        }
+
+        addLogEntry(data.message, data.was_knockout);
+
+        // Reload page after animations
+        await sleep(800);
+        location.reload();
+    } else {
+        alert(data.error);
+        isAnimating = false;
+    }
 }
 
-function executeSwitch(position) {
-    fetch(`/api/battle/${battleId}/switch`, {
+async function executeSwitch(position) {
+    if (isAnimating) return;
+    isAnimating = true;
+
+    const myCard = document.getElementById('my-pokemon-card');
+
+    // Hide menus
+    hideMenus();
+
+    // Switch out animation
+    myCard.classList.add('switching-out');
+    await sleep(300);
+
+    // Send switch to server
+    const response = await fetch(`/api/battle/${battleId}/switch`, {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({position: position})
-    })
-    .then(res => res.json())
-    .then(data => {
-        if (data.success) {
-            addLogEntry(data.message, false);
-            setTimeout(() => location.reload(), 500);
-        } else {
-            alert(data.error);
-        }
     });
+    const data = await response.json();
+
+    if (data.success) {
+        addLogEntry(data.message, false);
+        await sleep(200);
+        location.reload();
+    } else {
+        myCard.classList.remove('switching-out');
+        alert(data.error);
+        isAnimating = false;
+    }
 }
 
 function confirmForfeit() {
     if (confirm('Are you sure you want to forfeit?')) {
+        const myCard = document.getElementById('my-pokemon-card');
+        if (myCard) {
+            myCard.style.transition = 'all 0.5s';
+            myCard.style.opacity = '0';
+            myCard.style.transform = 'translateY(50px)';
+        }
+
         fetch(`/api/battle/${battleId}/forfeit`, {
             method: 'POST',
             headers: {'Content-Type': 'application/json'}
         })
         .then(res => res.json())
         .then(data => {
-            window.location.href = '{{ url_for("battle_lobby") }}';
+            setTimeout(() => {
+                window.location.href = '{{ url_for("battle_lobby") }}';
+            }, 500);
         });
     }
 }
 
+function showDamagePopup(target, damage) {
+    const popup = document.getElementById(target + '-damage-popup');
+    if (popup) {
+        popup.textContent = '-' + damage;
+        popup.classList.remove('show');
+        void popup.offsetWidth; // Force reflow
+        popup.classList.add('show');
+
+        setTimeout(() => {
+            popup.classList.remove('show');
+        }, 1000);
+    }
+}
+
+function showKOText() {
+    const koText = document.createElement('div');
+    koText.className = 'ko-text';
+    koText.textContent = 'K.O.!';
+    document.body.appendChild(koText);
+
+    setTimeout(() => {
+        koText.remove();
+    }, 1500);
+}
+
 function addLogEntry(message, isKnockout) {
     const entries = document.getElementById('log-entries');
-    const entry = document.createElement('div');
-    entry.className = 'log-entry damage' + (isKnockout ? ' knockout' : '');
-    entry.textContent = message;
-    entries.appendChild(entry);
-    entries.scrollTop = entries.scrollHeight;
+    if (entries) {
+        const entry = document.createElement('div');
+        entry.className = 'log-entry damage' + (isKnockout ? ' knockout' : '');
+        entry.textContent = message;
+        entries.appendChild(entry);
+        entries.scrollTop = entries.scrollHeight;
+    }
 }
 
 // Poll for battle state updates
@@ -658,7 +1314,6 @@ function pollBattleState() {
     .then(data => {
         if (data.success) {
             if (data.status === 'completed' || data.status === 'active') {
-                // Check if we need to refresh
                 const currentTurn = {{ battle.current_turn }};
                 if (data.current_turn !== currentTurn || data.status === 'completed') {
                     location.reload();
@@ -679,9 +1334,35 @@ pollInterval = setInterval(pollBattleState, 5000);
 window.addEventListener('beforeunload', () => {
     if (pollInterval) clearInterval(pollInterval);
 });
+
+// Add entrance animation on page load
+document.addEventListener('DOMContentLoaded', () => {
+    const myCard = document.getElementById('my-pokemon-card');
+    const oppCard = document.getElementById('opponent-pokemon-card');
+
+    if (myCard) {
+        myCard.style.opacity = '0';
+        myCard.style.transform = 'translateX(80px) scale(0.8)';
+        setTimeout(() => {
+            myCard.style.transition = 'all 0.4s ease-out';
+            myCard.style.opacity = '1';
+            myCard.style.transform = 'perspective(500px) rotateY(5deg)';
+        }, 100);
+    }
+
+    if (oppCard) {
+        oppCard.style.opacity = '0';
+        oppCard.style.transform = 'translateX(-80px) scale(0.8)';
+        setTimeout(() => {
+            oppCard.style.transition = 'all 0.4s ease-out';
+            oppCard.style.opacity = '1';
+            oppCard.style.transform = 'perspective(500px) rotateY(-5deg)';
+        }, 300);
+    }
+});
 </script>
 {% endblock %}
 
 {% block buttons %}
-<a href="{{ url_for('battle_lobby') }}" class="pokedex-btn btn-secondary">Back to Lobby</a>
+<a href="{{ url_for('battle_lobby') }}" class="pokedex-btn btn-secondary pixel-btn">BACK TO LOBBY</a>
 {% endblock %}

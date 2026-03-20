@@ -83,8 +83,8 @@ def search():
                                use_pokemontcg=False,
                                show_all=False)
 
-    # Determine limit based on show_all parameter
-    limit = 100 if show_all else 30
+    # Fetch more results for "See More" pagination (show 30 at a time in UI)
+    limit = 150
 
     # Search for cards - use pokemontcg.io directly if requested (with TCGdex fallback)
     if use_pokemontcg:

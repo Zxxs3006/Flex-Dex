@@ -40,9 +40,9 @@
             <div class="search-field api-toggle">
                 <label class="checkbox-label">
                     <input type="checkbox" name="use_pokemontcg" value="1" {% if use_pokemontcg %}checked{% endif %}>
-                    <span>Search Pokemon TCG database directly</span>
+                    <span>Include Prices</span>
                 </label>
-                <small>Uses an alternative database - may find different cards</small>
+                <small>Shows market prices from TCGPlayer (may be slower)</small>
             </div>
 
             <button type="submit" class="pokedex-btn btn-primary btn-large">
@@ -65,11 +65,11 @@
         </h3>
 
         {% if cards %}
-        <div class="search-results-grid">
+        <div class="search-results-grid" id="results-grid">
             {% for card in cards %}
-            <div class="search-result-card" onclick="window.location='{{ url_for('card_details', card_id=card.id) }}'">
+            <div class="search-result-card {% if loop.index > 30 %}hidden-card{% endif %}" data-index="{{ loop.index }}" onclick="window.location='{{ url_for('card_details', card_id=card.id) }}'">
                 <div class="result-card-image">
-                    <img src="{{ card.images.small }}" alt="{{ card.name }}">
+                    <img src="{{ card.images.small }}" alt="{{ card.name }}" loading="lazy">
                     {% if loop.index == 1 and exact_match %}
                     <span class="exact-match-badge">Best Match</span>
                     {% endif %}
@@ -88,6 +88,14 @@
             </div>
             {% endfor %}
         </div>
+
+        {% if cards|length > 30 %}
+        <div class="see-more-container" id="see-more-container">
+            <button class="pokedex-btn btn-secondary see-more-btn" id="see-more-btn" onclick="showMoreResults()">
+                See More (<span id="remaining-count">{{ cards|length - 30 }}</span> remaining)
+            </button>
+        </div>
+        {% endif %}
 
         {% else %}
         <div class="empty-state">
@@ -412,7 +420,60 @@
     cursor: pointer;
 }
 
+/* Hidden cards for See More functionality */
+.hidden-card {
+    display: none;
+}
+
+.see-more-container {
+    text-align: center;
+    margin-top: 25px;
+    padding: 20px;
+}
+
+.see-more-btn {
+    padding: 15px 40px;
+    font-size: 1.1em;
+}
+
 </style>
+
+{% if searched and cards %}
+<script>
+let currentVisible = 30;
+const totalCards = {{ cards|length }};
+const increment = 30;
+
+function showMoreResults() {
+    const cards = document.querySelectorAll('.search-result-card');
+    const newLimit = Math.min(currentVisible + increment, totalCards);
+
+    cards.forEach((card, index) => {
+        if (index < newLimit) {
+            card.classList.remove('hidden-card');
+        }
+    });
+
+    currentVisible = newLimit;
+
+    const remaining = totalCards - currentVisible;
+    const remainingSpan = document.getElementById('remaining-count');
+    const seeMoreContainer = document.getElementById('see-more-container');
+
+    if (remaining > 0) {
+        remainingSpan.textContent = remaining;
+    } else {
+        seeMoreContainer.style.display = 'none';
+    }
+
+    // Scroll to show new cards
+    const lastVisibleCard = document.querySelector(`.search-result-card[data-index="${currentVisible}"]`);
+    if (lastVisibleCard) {
+        lastVisibleCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+}
+</script>
+{% endif %}
 {% endblock %}
 
 {% block buttons %}

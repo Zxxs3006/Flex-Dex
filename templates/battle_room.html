@@ -53,9 +53,10 @@
                     <span class="hp-text">{{ current_hp }}/{{ max_hp }} HP</span>
                 </div>
                 <div class="card-container">
-                    <img src="{{ opponent_active_card.image_large or opponent_active_card.image_small }}"
+                    <img src="{{ opponent_active_card.image_large or opponent_active_card.image_small or '' }}"
                          alt="{{ opponent_active_card.name }}" class="pokemon-card-battle opponent-card"
-                         id="opponent-pokemon-card">
+                         id="opponent-pokemon-card"
+                         onerror="this.style.background='linear-gradient(135deg, #667eea 0%, #764ba2 100%)'; this.alt='{{ opponent_active_card.name }}';">
                     <div class="damage-popup" id="opponent-damage-popup"></div>
                 </div>
             </div>
@@ -78,9 +79,10 @@
             {% if my_active_card %}
             <div class="pokemon-display" id="my-pokemon">
                 <div class="card-container">
-                    <img src="{{ my_active_card.image_large or my_active_card.image_small }}"
+                    <img src="{{ my_active_card.image_large or my_active_card.image_small or '' }}"
                          alt="{{ my_active_card.name }}" class="pokemon-card-battle your-card"
-                         id="my-pokemon-card">
+                         id="my-pokemon-card"
+                         onerror="this.style.background='linear-gradient(135deg, #667eea 0%, #764ba2 100%)'; this.alt='{{ my_active_card.name }}';">
                     <div class="damage-popup" id="my-damage-popup"></div>
                 </div>
                 <div class="pokemon-info-bar pixel-border">
@@ -106,9 +108,9 @@
         <div class="turn-alert pixel-text">YOUR TURN!</div>
 
         <div class="action-buttons">
-            <button class="action-btn attack pixel-btn" onclick="showAttacks()">ATTACK</button>
-            <button class="action-btn switch pixel-btn" onclick="showSwitch()">SWITCH</button>
-            <button class="action-btn forfeit pixel-btn" onclick="confirmForfeit()">FORFEIT</button>
+            <button type="button" class="action-btn attack pixel-btn" onclick="showAttacks()">ATTACK</button>
+            <button type="button" class="action-btn switch pixel-btn" onclick="showSwitch()">SWITCH</button>
+            <button type="button" class="action-btn forfeit pixel-btn" onclick="confirmForfeit()">FORFEIT</button>
         </div>
 
         <!-- Attack Selection with Real Attacks -->
@@ -117,7 +119,7 @@
             <div class="attacks-list" id="attacks-list">
                 {% if my_attacks %}
                     {% for attack in my_attacks %}
-                    <button class="attack-option pixel-btn" onclick="executeAttack({{ loop.index0 }})">
+                    <button type="button" class="attack-option pixel-btn" onclick="executeAttack({{ loop.index0 }})">
                         <div class="attack-main">
                             <span class="attack-name">{{ attack.name }}</span>
                             <span class="attack-damage">{{ attack.damage or '-' }}</span>
@@ -135,7 +137,7 @@
                     </button>
                     {% endfor %}
                 {% else %}
-                    <button class="attack-option pixel-btn" onclick="executeAttack(0)">
+                    <button type="button" class="attack-option pixel-btn" onclick="executeAttack(0)">
                         <div class="attack-main">
                             <span class="attack-name">Tackle</span>
                             <span class="attack-damage">30</span>
@@ -146,7 +148,7 @@
                     </button>
                 {% endif %}
             </div>
-            <button class="cancel-btn pixel-btn" onclick="hideMenus()">CANCEL</button>
+            <button type="button" class="cancel-btn pixel-btn" onclick="hideMenus()">CANCEL</button>
         </div>
 
         <!-- Switch Selection -->
@@ -157,7 +159,8 @@
                     {% if pc.position != my_active and pc.card.id not in (battle.get_player1_knocked_out() if is_player1 else battle.get_player2_knocked_out()) %}
                     {% set card_hp = my_hp.get(pc.card.id|string, pc.card.hp or 100) %}
                     <div class="switch-option pixel-border" onclick="executeSwitch({{ pc.position }})">
-                        <img src="{{ pc.card.image_small }}" alt="{{ pc.card.name }}">
+                        <img src="{{ pc.card.image_small or pc.card.image_large or '' }}" alt="{{ pc.card.name }}"
+                             onerror="this.style.background='linear-gradient(135deg, #667eea 0%, #764ba2 100%)';">
                         <div class="switch-info">
                             <span class="switch-name">{{ pc.card.name }}</span>
                             <span class="switch-hp">HP: {{ card_hp }}/{{ pc.card.hp or 100 }}</span>
@@ -166,7 +169,7 @@
                     {% endif %}
                 {% endfor %}
             </div>
-            <button class="cancel-btn pixel-btn" onclick="hideMenus()">CANCEL</button>
+            <button type="button" class="cancel-btn pixel-btn" onclick="hideMenus()">CANCEL</button>
         </div>
         {% else %}
         <div class="waiting-turn pixel-text">Waiting for opponent's move...</div>
@@ -192,7 +195,7 @@
         </div>
         <h3 class="pixel-text">Waiting for opponent...</h3>
         <p>Share your battle link or wait for someone to join!</p>
-        <button class="pokedex-btn btn-secondary pixel-btn" onclick="confirmForfeit()">CANCEL BATTLE</button>
+        <button type="button" class="pokedex-btn btn-secondary pixel-btn" onclick="confirmForfeit()">CANCEL BATTLE</button>
     </div>
     {% endif %}
 
@@ -383,6 +386,8 @@
             rgba(0,0,0,0.1) 4px, rgba(0,0,0,0.1) 8px
         );
     image-rendering: pixelated;
+    pointer-events: none;
+    z-index: 1;
 }
 
 /* ==================== */
@@ -455,8 +460,9 @@
 }
 
 .pokemon-card-battle {
-    max-width: 130px;
-    max-height: 180px;
+    width: 130px;
+    height: 180px;
+    object-fit: contain;
     border-radius: 8px;
     box-shadow:
         0 5px 15px rgba(0,0,0,0.4),
@@ -464,6 +470,8 @@
     transition: transform 0.3s ease;
     /* Keep cards crisp, not pixelated */
     image-rendering: auto;
+    background: #f0f0f0;
+    display: block;
 }
 
 .opponent-card {
@@ -580,6 +588,8 @@
 .action-panel {
     padding: 15px;
     background: linear-gradient(180deg, #e8e8e8 0%, #c8c8c8 100%);
+    position: relative;
+    z-index: 10;
 }
 
 .turn-alert {

@@ -1489,21 +1489,35 @@ def battle_room(battle_id):
 
 
 @app.route('/api/battle/<int:battle_id>/state')
-@login_required
 def api_battle_state(battle_id):
-    """Get current battle state."""
+    """Get current battle state - no login required for polling."""
     battle = Battle.query.get_or_404(battle_id)
 
-    if current_user.id not in [battle.player1_id, battle.player2_id]:
-        return jsonify({'success': False, 'error': 'Not in this battle'})
+    # Determine who is checking (for is_my_turn)
+    user_id = None
+    if current_user.is_authenticated:
+        user_id = current_user.id
+    else:
+        # Check guest cookie
+        guest_battle_id = request.cookies.get('guest_battle_id')
+        if guest_battle_id == str(battle_id):
+            # Guest is player 1 or 2 depending on which guest user
+            guest_user = User.query.filter_by(username='_GuestPlayer_').first()
+            guest_user2 = User.query.filter_by(username='_GuestPlayer2_').first()
+            if guest_user and battle.player1_id == guest_user.id:
+                user_id = guest_user.id
+            elif guest_user2 and battle.player2_id == guest_user2.id:
+                user_id = guest_user2.id
 
-    is_player1 = current_user.id == battle.player1_id
+    is_my_turn = False
+    if user_id:
+        is_my_turn = battle.is_player_turn(user_id)
 
     return jsonify({
         'success': True,
         'status': battle.status,
         'current_turn': battle.current_turn,
-        'is_my_turn': battle.is_player_turn(current_user.id),
+        'is_my_turn': is_my_turn,
         'whose_turn': battle.whose_turn,
         'player1_active': battle.player1_active,
         'player2_active': battle.player2_active,
@@ -1511,7 +1525,8 @@ def api_battle_state(battle_id):
         'player2_hp': battle.get_player2_hp(),
         'player1_knocked_out': battle.get_player1_knocked_out(),
         'player2_knocked_out': battle.get_player2_knocked_out(),
-        'winner_id': battle.winner_id
+        'winner_id': battle.winner_id,
+        'has_player2': battle.player2_id is not None
     })
 
 

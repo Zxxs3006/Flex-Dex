@@ -1402,27 +1402,50 @@ function addLogEntry(message, isKnockout) {
 }
 
 // Poll for battle state updates
+let lastKnownTurn = {{ battle.current_turn }};
+let lastKnownStatus = '{{ battle.status }}';
+
 function pollBattleState() {
     fetch(`/api/battle/${battleId}/state`)
     .then(res => res.json())
     .then(data => {
         if (data.success) {
-            if (data.status === 'completed' || data.status === 'active') {
-                const currentTurn = {{ battle.current_turn }};
-                if (data.current_turn !== currentTurn || data.status === 'completed') {
-                    location.reload();
-                }
+            console.log('Poll result:', data.status, 'turn:', data.current_turn, 'has_player2:', data.has_player2);
+
+            // Reload if:
+            // 1. Status changed (waiting -> active, active -> completed)
+            // 2. Turn number changed (opponent made a move)
+            // 3. Battle was waiting and now has player 2
+            if (data.status !== lastKnownStatus) {
+                console.log('Status changed, reloading...');
+                location.reload();
+                return;
+            }
+
+            if (data.current_turn !== lastKnownTurn) {
+                console.log('Turn changed, reloading...');
+                location.reload();
+                return;
+            }
+
+            // For waiting battles, check if player 2 joined
+            if (lastKnownStatus === 'waiting' && data.has_player2) {
+                console.log('Player 2 joined, reloading...');
+                location.reload();
+                return;
             }
         }
+    })
+    .catch(err => {
+        console.log('Poll error:', err);
     });
 }
 
-// Start polling if battle is active and not our turn
-{% if battle.status == 'active' and not battle.is_player_turn(current_user.id) %}
-pollInterval = setInterval(pollBattleState, 3000);
-{% elif battle.status == 'waiting' %}
-pollInterval = setInterval(pollBattleState, 5000);
-{% endif %}
+// Always poll - check every 2 seconds
+pollInterval = setInterval(pollBattleState, 2000);
+
+// Also poll immediately on page load after a short delay
+setTimeout(pollBattleState, 1000);
 
 // Cleanup on page leave
 window.addEventListener('beforeunload', () => {

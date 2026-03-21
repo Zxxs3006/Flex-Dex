@@ -177,39 +177,37 @@ def login():
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    """User registration page."""
+    """User registration page - simple username & password only."""
     if current_user.is_authenticated:
         return redirect(url_for('index'))
 
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
-        email = request.form.get('email', '').strip()
         password = request.form.get('password', '')
-        confirm_password = request.form.get('confirm_password', '')
 
         errors = []
 
         if len(username) < 3:
             errors.append('Username must be at least 3 characters')
 
+        if len(username) > 20:
+            errors.append('Username must be 20 characters or less')
+
         if User.query.filter_by(username=username).first():
             errors.append('Username already taken')
 
-        if User.query.filter_by(email=email).first():
-            errors.append('Email already registered')
-
-        if len(password) < 6:
-            errors.append('Password must be at least 6 characters')
-
-        if password != confirm_password:
-            errors.append('Passwords do not match')
+        if len(password) < 4:
+            errors.append('Password must be at least 4 characters')
 
         if errors:
             for error in errors:
                 flash(error, 'error')
             return render_template('register.html')
 
-        user = User(username=username, email=email)
+        # Generate a placeholder email from username
+        placeholder_email = f"{username.lower()}@flexdex.local"
+
+        user = User(username=username, email=placeholder_email)
         user.set_password(password)
         db.session.add(user)
         db.session.commit()

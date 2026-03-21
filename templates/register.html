@@ -1,43 +1,183 @@
 {% extends "base.html" %}
 
-{% block title %}Register - Pokédex{% endblock %}
+{% block title %}Register - FlexDex{% endblock %}
 
 {% block content %}
-<div class="register-page" style="max-width: 400px; margin: 0 auto;">
-    <h2 style="text-align: center; margin-bottom: 30px;">Become a Trainer</h2>
-
-    <form class="pokedex-form" method="POST" action="{{ url_for('register') }}">
-        <div class="form-group">
-            <label for="username">Username</label>
-            <input type="text" id="username" name="username" required
-                   placeholder="Choose your trainer name" minlength="3" maxlength="80">
+<div class="register-page">
+    <div class="register-card">
+        <div class="register-header">
+            <h2>Join FlexDex!</h2>
+            <p>Create your trainer account in seconds</p>
         </div>
 
-        <div class="form-group">
-            <label for="email">Email</label>
-            <input type="email" id="email" name="email" required
-                   placeholder="Enter your email">
+        <form class="register-form" method="POST" action="{{ url_for('register') }}">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" id="username" name="username" required
+                       placeholder="Choose a username" minlength="3" maxlength="20"
+                       autocomplete="username">
+            </div>
+
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" id="password" name="password" required
+                       placeholder="Create a password" minlength="4"
+                       autocomplete="new-password">
+            </div>
+
+            <button type="submit" class="register-btn">CREATE ACCOUNT</button>
+        </form>
+
+        <div class="benefits-preview">
+            <h4>You'll Get:</h4>
+            <ul>
+                <li>🎰 Daily spin rewards</li>
+                <li>⚔️ Unlimited battles</li>
+                <li>🎴 Use any Pokemon</li>
+                <li>📊 Track your stats</li>
+            </ul>
         </div>
 
-        <div class="form-group">
-            <label for="password">Password</label>
-            <input type="password" id="password" name="password" required
-                   placeholder="Create a password" minlength="6">
-        </div>
-
-        <div class="form-group">
-            <label for="confirm_password">Confirm Password</label>
-            <input type="password" id="confirm_password" name="confirm_password" required
-                   placeholder="Confirm your password">
-        </div>
-
-        <div style="text-align: center; margin-top: 20px;">
-            <button type="submit" class="pokedex-btn btn-primary">Register</button>
-        </div>
-    </form>
-
-    <p style="text-align: center; margin-top: 30px;">
-        Already a trainer? <a href="{{ url_for('login') }}" style="color: #cc0000;">Login here</a>
-    </p>
+        <p class="login-link">
+            Already have an account? <a href="{{ url_for('login') }}">Login here</a>
+        </p>
+    </div>
 </div>
+
+<style>
+.register-page {
+    min-height: 80vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.register-card {
+    background: white;
+    border-radius: 20px;
+    padding: 30px;
+    max-width: 380px;
+    width: 100%;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+}
+
+.register-header {
+    text-align: center;
+    margin-bottom: 25px;
+}
+
+.register-header h2 {
+    font-size: 1.8em;
+    color: #333;
+    margin-bottom: 5px;
+}
+
+.register-header p {
+    color: #888;
+    font-size: 0.95em;
+}
+
+.register-form {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.form-group label {
+    font-weight: 600;
+    color: #555;
+    font-size: 0.9em;
+}
+
+.form-group input {
+    padding: 14px 16px;
+    border: 2px solid #e0e0e0;
+    border-radius: 12px;
+    font-size: 1em;
+    transition: all 0.2s;
+}
+
+.form-group input:focus {
+    outline: none;
+    border-color: #6b46c1;
+    box-shadow: 0 0 0 3px rgba(107, 70, 193, 0.1);
+}
+
+.register-btn {
+    background: linear-gradient(135deg, #6b46c1 0%, #9333ea 100%);
+    color: white;
+    border: none;
+    padding: 16px;
+    border-radius: 12px;
+    font-size: 1em;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.register-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(107, 70, 193, 0.4);
+}
+
+.register-btn:active {
+    transform: translateY(0);
+}
+
+.benefits-preview {
+    margin-top: 25px;
+    padding: 20px;
+    background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+    border-radius: 12px;
+    border: 1px solid #86efac;
+}
+
+.benefits-preview h4 {
+    font-size: 0.85em;
+    color: #166534;
+    margin-bottom: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+.benefits-preview ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+}
+
+.benefits-preview li {
+    font-size: 0.85em;
+    color: #333;
+}
+
+.login-link {
+    text-align: center;
+    margin-top: 25px;
+    color: #888;
+    font-size: 0.9em;
+}
+
+.login-link a {
+    color: #6b46c1;
+    font-weight: 600;
+    text-decoration: none;
+}
+
+.login-link a:hover {
+    text-decoration: underline;
+}
+</style>
 {% endblock %}

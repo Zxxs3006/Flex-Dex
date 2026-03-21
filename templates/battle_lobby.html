@@ -9,6 +9,21 @@
         <p>Challenge trainers using your Pokemon card collection!</p>
     </div>
 
+    <!-- Daily Rewards Banner -->
+    <div class="daily-rewards-banner">
+        <a href="{{ url_for('daily_rewards') }}" class="rewards-link {% if can_spin %}can-spin{% endif %}">
+            <span class="rewards-icon">🎰</span>
+            <span class="rewards-text">
+                {% if can_spin %}
+                DAILY SPIN AVAILABLE!
+                {% else %}
+                Daily Rewards
+                {% endif %}
+            </span>
+            <span class="rewards-coins">🪙 {{ current_user.coins }}</span>
+        </a>
+    </div>
+
     <!-- Battle Stats -->
     <div class="stats-bar">
         {% if battle_stats %}
@@ -168,6 +183,56 @@
 
 .lobby-header p {
     color: var(--pokedex-gray);
+}
+
+/* Daily Rewards Banner */
+.daily-rewards-banner {
+    margin-bottom: 20px;
+}
+
+.rewards-link {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 12px;
+    color: white;
+    text-decoration: none;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+}
+
+.rewards-link:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+}
+
+.rewards-link.can-spin {
+    background: linear-gradient(135deg, #f5af19 0%, #f12711 100%);
+    animation: pulse-glow 2s infinite;
+}
+
+@keyframes pulse-glow {
+    0%, 100% { box-shadow: 0 4px 15px rgba(245, 175, 25, 0.4); }
+    50% { box-shadow: 0 4px 25px rgba(241, 39, 17, 0.6); }
+}
+
+.rewards-icon {
+    font-size: 1.5em;
+}
+
+.rewards-text {
+    font-weight: bold;
+    font-size: 0.9em;
+    text-transform: uppercase;
+}
+
+.rewards-coins {
+    font-weight: bold;
+    background: rgba(255,255,255,0.2);
+    padding: 5px 12px;
+    border-radius: 20px;
 }
 
 .stats-bar {

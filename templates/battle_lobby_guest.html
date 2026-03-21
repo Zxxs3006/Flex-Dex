@@ -1,0 +1,318 @@
+{% extends "base.html" %}
+
+{% block title %}Guest Battle - FlexDex{% endblock %}
+
+{% block content %}
+<div class="guest-battle-lobby">
+    <h1 class="page-title pixel-text">GUEST BATTLE</h1>
+
+    <!-- Guest Info Banner -->
+    <div class="guest-info pixel-border">
+        <div class="guest-status">
+            <span class="guest-icon">👤</span>
+            <span class="guest-label">Playing as Guest</span>
+        </div>
+        <div class="battles-remaining">
+            <span class="remaining-count">{{ battles_remaining }}</span>
+            <span class="remaining-label">battles left today</span>
+        </div>
+    </div>
+
+    <!-- Guest Limitations -->
+    <div class="limitations pixel-border">
+        <h3 class="pixel-text">Guest Limitations</h3>
+        <ul>
+            <li>❌ Only 3 battles per day</li>
+            <li>❌ Limited to starter Pokemon</li>
+            <li>❌ No rare or popular Pokemon</li>
+            <li>❌ No battle stats tracking</li>
+        </ul>
+    </div>
+
+    <!-- Register CTA -->
+    <div class="register-cta pixel-border">
+        <h3 class="pixel-text">Want More?</h3>
+        <p>Register for FREE to unlock:</p>
+        <ul class="benefits-list">
+            <li>✅ Unlimited battles</li>
+            <li>✅ Use ANY Pokemon</li>
+            <li>✅ Daily spin the wheel rewards</li>
+            <li>✅ Earn coins & booster packs</li>
+            <li>✅ Battle boosts & power-ups</li>
+            <li>✅ Track your battle stats</li>
+        </ul>
+        <a href="{{ url_for('register') }}" class="register-btn pixel-btn">REGISTER FREE</a>
+    </div>
+
+    {% if can_battle %}
+    <!-- Start Battle Section -->
+    <div class="battle-actions pixel-border">
+        <h3 class="pixel-text">Quick Battle</h3>
+        <p>You'll get a random team of starter Pokemon!</p>
+
+        <form action="{{ url_for('guest_create_battle') }}" method="POST">
+            <button type="submit" class="create-battle-btn pixel-btn">CREATE BATTLE</button>
+        </form>
+    </div>
+
+    <!-- Available Battles -->
+    {% if available_battles %}
+    <div class="available-battles pixel-border">
+        <h3 class="pixel-text">Join a Battle</h3>
+        <div class="battles-list">
+            {% for battle in available_battles %}
+            <div class="battle-card">
+                <div class="battle-info">
+                    <span class="opponent-name">{{ battle.player1.username }}</span>
+                    <span class="battle-time">{{ battle.created_at.strftime('%H:%M') }}</span>
+                </div>
+                <form action="{{ url_for('guest_join_battle', battle_id=battle.id) }}" method="POST">
+                    <button type="submit" class="join-btn pixel-btn">JOIN</button>
+                </form>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div class="no-battles pixel-border">
+        <p>No battles available. Create one!</p>
+    </div>
+    {% endif %}
+
+    {% else %}
+    <!-- No battles remaining -->
+    <div class="no-remaining pixel-border">
+        <h3 class="pixel-text">Daily Limit Reached!</h3>
+        <p>You've used all 3 guest battles today.</p>
+        <p>Come back tomorrow or register for unlimited battles!</p>
+        <a href="{{ url_for('register') }}" class="register-btn pixel-btn">REGISTER FREE</a>
+    </div>
+    {% endif %}
+</div>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+.pixel-text {
+    font-family: 'Press Start 2P', monospace;
+}
+
+.guest-battle-lobby {
+    max-width: 500px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.page-title {
+    text-align: center;
+    font-size: 1.2em;
+    margin-bottom: 20px;
+    color: #888;
+    text-shadow: 2px 2px 0 #000;
+}
+
+.pixel-border {
+    border: 4px solid #222;
+    box-shadow:
+        inset -4px -4px 0px 0px #555,
+        inset 4px 4px 0px 0px #888,
+        0 4px 0 #111;
+    background: linear-gradient(180deg, #f0f0f0 0%, #d0d0d0 100%);
+    padding: 15px;
+    margin-bottom: 15px;
+}
+
+.pixel-btn {
+    font-family: 'Press Start 2P', monospace;
+    border: 3px solid #222;
+    box-shadow: 0 4px 0 #111;
+    cursor: pointer;
+    transition: all 0.1s;
+    padding: 12px 20px;
+    font-size: 0.7em;
+}
+
+.pixel-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 0 #111;
+}
+
+.pixel-btn:active {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 #111;
+}
+
+/* Guest Info */
+.guest-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: linear-gradient(180deg, #e0e0e0 0%, #c0c0c0 100%);
+}
+
+.guest-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.guest-icon {
+    font-size: 1.5em;
+}
+
+.guest-label {
+    font-weight: bold;
+    color: #666;
+}
+
+.battles-remaining {
+    text-align: right;
+}
+
+.remaining-count {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 1.5em;
+    color: #ff6600;
+    display: block;
+}
+
+.remaining-label {
+    font-size: 0.75em;
+    color: #666;
+}
+
+/* Limitations */
+.limitations {
+    background: linear-gradient(180deg, #ffe4e4 0%, #ffcccc 100%);
+}
+
+.limitations h3 {
+    font-size: 0.7em;
+    margin-bottom: 10px;
+    color: #cc0000;
+}
+
+.limitations ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.limitations li {
+    padding: 5px 0;
+    font-size: 0.85em;
+    color: #666;
+}
+
+/* Register CTA */
+.register-cta {
+    background: linear-gradient(180deg, #e8f5e9 0%, #c8e6c9 100%);
+    text-align: center;
+}
+
+.register-cta h3 {
+    font-size: 0.8em;
+    color: #2e7d32;
+    margin-bottom: 10px;
+}
+
+.benefits-list {
+    list-style: none;
+    padding: 0;
+    margin: 15px 0;
+    text-align: left;
+}
+
+.benefits-list li {
+    padding: 5px 0;
+    font-size: 0.85em;
+}
+
+.register-btn {
+    background: linear-gradient(180deg, #4CAF50 0%, #388E3C 100%);
+    color: white;
+    width: 100%;
+    margin-top: 10px;
+}
+
+/* Battle Actions */
+.battle-actions {
+    text-align: center;
+}
+
+.battle-actions h3 {
+    font-size: 0.8em;
+    margin-bottom: 10px;
+}
+
+.battle-actions p {
+    font-size: 0.85em;
+    color: #666;
+    margin-bottom: 15px;
+}
+
+.create-battle-btn {
+    background: linear-gradient(180deg, #ff6b6b 0%, #cc0000 100%);
+    color: white;
+    width: 100%;
+}
+
+/* Available Battles */
+.available-battles h3 {
+    font-size: 0.8em;
+    margin-bottom: 15px;
+}
+
+.battles-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.battle-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    background: white;
+    border: 2px solid #ddd;
+}
+
+.opponent-name {
+    font-weight: bold;
+}
+
+.battle-time {
+    font-size: 0.8em;
+    color: #888;
+    margin-left: 10px;
+}
+
+.join-btn {
+    background: linear-gradient(180deg, #9b59b6 0%, #6b3a96 100%);
+    color: white;
+    padding: 8px 15px;
+}
+
+/* No Battles */
+.no-battles, .no-remaining {
+    text-align: center;
+    padding: 30px;
+}
+
+.no-remaining {
+    background: linear-gradient(180deg, #ffe4e4 0%, #ffcccc 100%);
+}
+
+.no-remaining h3 {
+    font-size: 0.8em;
+    color: #cc0000;
+    margin-bottom: 15px;
+}
+</style>
+{% endblock %}
+
+{% block buttons %}
+<a href="{{ url_for('login') }}" class="pokedex-btn btn-secondary">Login</a>
+<a href="{{ url_for('register') }}" class="pokedex-btn btn-primary">Register</a>
+{% endblock %}

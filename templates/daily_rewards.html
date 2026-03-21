@@ -1,0 +1,446 @@
+{% extends "base.html" %}
+
+{% block title %}Daily Rewards - FlexDex{% endblock %}
+
+{% block content %}
+<div class="rewards-container">
+    <h1 class="page-title pixel-text">DAILY REWARDS</h1>
+
+    <!-- Coins Display -->
+    <div class="coins-display pixel-border">
+        <span class="coins-icon">🪙</span>
+        <span class="coins-amount">{{ coins }}</span>
+        <span class="coins-label">Coins</span>
+    </div>
+
+    <!-- Active Boost -->
+    {% if active_boost %}
+    <div class="active-boost pixel-border">
+        <span class="boost-icon">⚡</span>
+        <span class="boost-info">
+            Active: +10% {{ active_boost.type|capitalize }}
+            <br>
+            <small>Expires: {{ active_boost.expires.strftime('%H:%M') }}</small>
+        </span>
+    </div>
+    {% endif %}
+
+    <!-- Spin the Wheel -->
+    <div class="wheel-container">
+        <div class="wheel-frame pixel-border">
+            <div class="wheel-pointer">▼</div>
+            <div class="wheel" id="wheel">
+                {% for reward in spin_rewards %}
+                <div class="wheel-segment" style="--segment-color: {{ reward.color }}; --segment-index: {{ loop.index0 }};">
+                    <span class="segment-label">{{ reward.label }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        {% if can_spin %}
+        <button type="button" class="spin-btn pixel-btn" id="spin-btn" onclick="spinWheel()">
+            SPIN THE WHEEL!
+        </button>
+        {% else %}
+        <div class="already-spun pixel-border">
+            <p>You already spun today!</p>
+            <p class="next-spin">Come back tomorrow for another spin!</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Reward Popup -->
+    <div class="reward-popup" id="reward-popup" style="display: none;">
+        <div class="reward-content pixel-border">
+            <h2 class="pixel-text">CONGRATULATIONS!</h2>
+            <div class="reward-display" id="reward-display"></div>
+            <p class="reward-message" id="reward-message"></p>
+            <button type="button" class="close-btn pixel-btn" onclick="closePopup()">AWESOME!</button>
+        </div>
+    </div>
+
+    <!-- Rewards Info -->
+    <div class="rewards-info pixel-border">
+        <h3 class="pixel-text">Possible Rewards</h3>
+        <div class="rewards-grid">
+            {% for reward in spin_rewards %}
+            <div class="reward-item" style="border-color: {{ reward.color }};">
+                <span class="reward-label">{{ reward.label }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Benefits Section -->
+    <div class="benefits-section pixel-border">
+        <h3 class="pixel-text">Member Benefits</h3>
+        <ul class="benefits-list">
+            <li>🎰 Daily spin the wheel rewards</li>
+            <li>🪙 Earn coins to buy booster packs</li>
+            <li>⚔️ Unlimited battles per day</li>
+            <li>🎴 Use ANY Pokemon in battles</li>
+            <li>📊 Track your battle stats</li>
+            <li>⚡ Win battle boosts for extra power</li>
+        </ul>
+    </div>
+</div>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+.pixel-text {
+    font-family: 'Press Start 2P', monospace;
+}
+
+.rewards-container {
+    max-width: 500px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+.page-title {
+    text-align: center;
+    font-size: 1.2em;
+    margin-bottom: 20px;
+    color: #ffd700;
+    text-shadow: 2px 2px 0 #000;
+}
+
+.pixel-border {
+    border: 4px solid #222;
+    box-shadow:
+        inset -4px -4px 0px 0px #555,
+        inset 4px 4px 0px 0px #888,
+        0 4px 0 #111;
+    background: linear-gradient(180deg, #f0f0f0 0%, #d0d0d0 100%);
+}
+
+.pixel-btn {
+    font-family: 'Press Start 2P', monospace;
+    border: 3px solid #222;
+    box-shadow: 0 4px 0 #111;
+    cursor: pointer;
+    transition: all 0.1s;
+    padding: 15px 30px;
+    font-size: 0.8em;
+    background: linear-gradient(180deg, #ffd700 0%, #ff8c00 100%);
+    color: #222;
+}
+
+.pixel-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 0 #111;
+}
+
+.pixel-btn:active {
+    transform: translateY(2px);
+    box-shadow: 0 2px 0 #111;
+}
+
+/* Coins Display */
+.coins-display {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 15px;
+    margin-bottom: 20px;
+    background: linear-gradient(180deg, #fff8dc 0%, #ffd700 100%);
+}
+
+.coins-icon {
+    font-size: 2em;
+}
+
+.coins-amount {
+    font-family: 'Press Start 2P', monospace;
+    font-size: 1.5em;
+    color: #222;
+}
+
+.coins-label {
+    font-size: 0.9em;
+    color: #666;
+}
+
+/* Active Boost */
+.active-boost {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 15px;
+    margin-bottom: 20px;
+    background: linear-gradient(180deg, #e8ffe8 0%, #90ee90 100%);
+}
+
+.boost-icon {
+    font-size: 1.5em;
+}
+
+/* Wheel Container */
+.wheel-container {
+    text-align: center;
+    margin: 30px 0;
+}
+
+.wheel-frame {
+    width: 280px;
+    height: 280px;
+    margin: 0 auto 20px;
+    border-radius: 50%;
+    position: relative;
+    padding: 10px;
+    background: linear-gradient(180deg, #444 0%, #222 100%);
+}
+
+.wheel-pointer {
+    position: absolute;
+    top: -15px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 2em;
+    color: #ff0000;
+    z-index: 10;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}
+
+.wheel {
+    width: 250px;
+    height: 250px;
+    border-radius: 50%;
+    position: relative;
+    margin: 5px auto;
+    background: conic-gradient(
+        #FFD700 0deg 45deg,
+        #FFA500 45deg 90deg,
+        #FF6347 90deg 135deg,
+        #90EE90 135deg 180deg,
+        #87CEEB 180deg 225deg,
+        #DDA0DD 225deg 270deg,
+        #FF4444 270deg 315deg,
+        #44FF44 315deg 360deg
+    );
+    transition: transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99);
+    box-shadow: inset 0 0 20px rgba(0,0,0,0.3);
+}
+
+.wheel::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(180deg, #fff 0%, #ccc 100%);
+    border-radius: 50%;
+    border: 4px solid #222;
+}
+
+.wheel.spinning {
+    transition: transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99);
+}
+
+.spin-btn {
+    width: 100%;
+    max-width: 280px;
+}
+
+.spin-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Already Spun */
+.already-spun {
+    padding: 20px;
+    text-align: center;
+    background: linear-gradient(180deg, #ffe4e4 0%, #ffcccc 100%);
+}
+
+.next-spin {
+    font-size: 0.85em;
+    color: #666;
+    margin-top: 10px;
+}
+
+/* Reward Popup */
+.reward-popup {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.reward-content {
+    padding: 30px;
+    text-align: center;
+    max-width: 350px;
+    background: linear-gradient(180deg, #fff8dc 0%, #ffd700 100%);
+    animation: popup-appear 0.5s ease-out;
+}
+
+@keyframes popup-appear {
+    0% { transform: scale(0.5); opacity: 0; }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); opacity: 1; }
+}
+
+.reward-content h2 {
+    font-size: 1em;
+    margin-bottom: 20px;
+    color: #222;
+}
+
+.reward-display {
+    font-size: 3em;
+    margin: 20px 0;
+}
+
+.reward-message {
+    font-size: 1em;
+    margin-bottom: 20px;
+    color: #333;
+}
+
+.close-btn {
+    background: linear-gradient(180deg, #4CAF50 0%, #388E3C 100%);
+    color: white;
+}
+
+/* Rewards Info */
+.rewards-info {
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.rewards-info h3 {
+    font-size: 0.8em;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.rewards-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+
+.reward-item {
+    padding: 10px;
+    text-align: center;
+    background: #fff;
+    border: 3px solid;
+    border-radius: 5px;
+    font-size: 0.75em;
+}
+
+/* Benefits Section */
+.benefits-section {
+    padding: 20px;
+    margin-top: 20px;
+    background: linear-gradient(180deg, #e8f5e9 0%, #c8e6c9 100%);
+}
+
+.benefits-section h3 {
+    font-size: 0.8em;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.benefits-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.benefits-list li {
+    padding: 8px 0;
+    border-bottom: 1px dashed #aaa;
+    font-size: 0.85em;
+}
+
+.benefits-list li:last-child {
+    border-bottom: none;
+}
+</style>
+
+<script>
+let isSpinning = false;
+
+async function spinWheel() {
+    if (isSpinning) return;
+    isSpinning = true;
+
+    const wheel = document.getElementById('wheel');
+    const spinBtn = document.getElementById('spin-btn');
+
+    spinBtn.disabled = true;
+    spinBtn.textContent = 'SPINNING...';
+
+    // Call API to get result
+    const response = await fetch('/api/spin', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'}
+    });
+    const data = await response.json();
+
+    if (data.success) {
+        // Calculate rotation (8 segments, each 45 degrees)
+        const segmentAngle = 360 / 8;
+        const targetAngle = (7 - data.reward_index) * segmentAngle + (segmentAngle / 2);
+        const spins = 5; // Number of full rotations
+        const totalRotation = (spins * 360) + targetAngle;
+
+        wheel.style.transform = `rotate(${totalRotation}deg)`;
+
+        // Show reward after animation
+        setTimeout(() => {
+            showReward(data);
+        }, 4200);
+    } else {
+        alert(data.error);
+        spinBtn.disabled = false;
+        spinBtn.textContent = 'SPIN THE WHEEL!';
+        isSpinning = false;
+    }
+}
+
+function showReward(data) {
+    const popup = document.getElementById('reward-popup');
+    const display = document.getElementById('reward-display');
+    const message = document.getElementById('reward-message');
+
+    // Set emoji based on reward type
+    let emoji = '🎁';
+    if (data.reward.type === 'coins') emoji = '🪙';
+    else if (data.reward.type === 'card') emoji = '🎴';
+    else if (data.reward.type === 'booster') emoji = '📦';
+    else if (data.reward.type.startsWith('boost')) emoji = '⚡';
+
+    display.textContent = emoji;
+    message.textContent = data.message;
+    popup.style.display = 'flex';
+
+    // Update coins display
+    document.querySelector('.coins-amount').textContent = data.new_coins;
+}
+
+function closePopup() {
+    document.getElementById('reward-popup').style.display = 'none';
+    // Reload to update UI
+    location.reload();
+}
+</script>
+{% endblock %}
+
+{% block buttons %}
+<a href="{{ url_for('battle_lobby') }}" class="pokedex-btn btn-secondary">Back to Battle</a>
+{% endblock %}

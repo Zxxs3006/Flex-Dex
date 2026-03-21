@@ -883,12 +883,177 @@ def api_profile_stats():
     })
 
 
+# ============== Daily Rewards System ==============
+
+# Starter Pokemon pool for guests (common, basic Pokemon)
+STARTER_POKEMON_IDS = [
+    'base1-44',   # Bulbasaur
+    'base1-46',   # Charmander
+    'base1-63',   # Squirtle
+    'base1-55',   # Pikachu
+    'base1-43',   # Abra
+    'base1-52',   # Machop
+    'base1-49',   # Drowzee
+    'base1-58',   # Ponyta
+    'base1-67',   # Voltorb
+    'base1-39',   # Geodude (was Porygon)
+    'base1-66',   # Staryu
+    'base1-56',   # Pidgey
+]
+
+# Popular Pokemon that guests CAN'T use
+RESTRICTED_POKEMON = [
+    'Charizard', 'Blastoise', 'Venusaur', 'Pikachu VMAX', 'Mewtwo',
+    'Mew', 'Rayquaza', 'Umbreon', 'Gengar', 'Dragonite', 'Gyarados',
+    'Lugia', 'Ho-Oh', 'Arceus', 'Giratina', 'Dialga', 'Palkia'
+]
+
+SPIN_REWARDS = [
+    {'type': 'coins', 'amount': 50, 'label': '50 Coins', 'color': '#FFD700', 'weight': 25},
+    {'type': 'coins', 'amount': 100, 'label': '100 Coins', 'color': '#FFA500', 'weight': 20},
+    {'type': 'coins', 'amount': 250, 'label': '250 Coins', 'color': '#FF6347', 'weight': 10},
+    {'type': 'card', 'rarity': 'Common', 'label': 'Random Card', 'color': '#90EE90', 'weight': 20},
+    {'type': 'card', 'rarity': 'Rare', 'label': 'Rare Card', 'color': '#87CEEB', 'weight': 8},
+    {'type': 'booster', 'amount': 3, 'label': 'Mini Booster (3)', 'color': '#DDA0DD', 'weight': 10},
+    {'type': 'boost_damage', 'amount': 10, 'label': '+10% Damage', 'color': '#FF4444', 'weight': 5},
+    {'type': 'boost_hp', 'amount': 10, 'label': '+10% HP', 'color': '#44FF44', 'weight': 2},
+]
+
+import random
+from datetime import date, timedelta
+
+@app.route('/rewards')
+@login_required
+def daily_rewards():
+    """Daily rewards page with spin the wheel."""
+    # Check if user can spin today
+    today = date.today()
+    can_spin = current_user.last_spin_date != today
+
+    # Check active boosts
+    active_boost = None
+    if current_user.battle_boost_type and current_user.battle_boost_expires:
+        if current_user.battle_boost_expires > datetime.utcnow():
+            active_boost = {
+                'type': current_user.battle_boost_type,
+                'expires': current_user.battle_boost_expires
+            }
+
+    return render_template('daily_rewards.html',
+                          can_spin=can_spin,
+                          coins=current_user.coins,
+                          active_boost=active_boost,
+                          spin_rewards=SPIN_REWARDS)
+
+
+@app.route('/api/spin', methods=['POST'])
+@login_required
+def api_spin_wheel():
+    """API endpoint to spin the daily wheel."""
+    today = date.today()
+
+    if current_user.last_spin_date == today:
+        return jsonify({'success': False, 'error': 'You already spun today!'})
+
+    # Weighted random selection
+    total_weight = sum(r['weight'] for r in SPIN_REWARDS)
+    rand = random.uniform(0, total_weight)
+    cumulative = 0
+
+    reward = SPIN_REWARDS[0]
+    reward_index = 0
+    for i, r in enumerate(SPIN_REWARDS):
+        cumulative += r['weight']
+        if rand <= cumulative:
+            reward = r
+            reward_index = i
+            break
+
+    # Apply reward
+    reward_message = ""
+    if reward['type'] == 'coins':
+        current_user.coins += reward['amount']
+        reward_message = f"You won {reward['amount']} coins!"
+    elif reward['type'] == 'card':
+        # Give a random card
+        rarity = reward.get('rarity', 'Common')
+        cards = Card.query.filter(Card.rarity.ilike(f'%{rarity}%')).limit(100).all()
+        if cards:
+            random_card = random.choice(cards)
+            # Check if user already has this card
+            existing = UserCard.query.filter_by(user_id=current_user.id, card_id=random_card.id).first()
+            if existing:
+                existing.quantity += 1
+            else:
+                new_card = UserCard(user_id=current_user.id, card_id=random_card.id, quantity=1, verified=True)
+                db.session.add(new_card)
+            reward_message = f"You won a {rarity} card: {random_card.name}!"
+        else:
+            current_user.coins += 100
+            reward_message = "No cards available, you got 100 coins instead!"
+    elif reward['type'] == 'booster':
+        # Give multiple random cards
+        count = reward.get('amount', 3)
+        cards = Card.query.limit(500).all()
+        if cards:
+            won_cards = random.sample(cards, min(count, len(cards)))
+            for card in won_cards:
+                existing = UserCard.query.filter_by(user_id=current_user.id, card_id=card.id).first()
+                if existing:
+                    existing.quantity += 1
+                else:
+                    new_card = UserCard(user_id=current_user.id, card_id=card.id, quantity=1, verified=True)
+                    db.session.add(new_card)
+            reward_message = f"You won a mini booster with {count} cards!"
+        else:
+            current_user.coins += 150
+            reward_message = "No cards available, you got 150 coins instead!"
+    elif reward['type'] == 'boost_damage':
+        current_user.battle_boost_type = 'damage'
+        current_user.battle_boost_expires = datetime.utcnow() + timedelta(hours=24)
+        reward_message = f"+{reward['amount']}% damage boost for 24 hours!"
+    elif reward['type'] == 'boost_hp':
+        current_user.battle_boost_type = 'hp'
+        current_user.battle_boost_expires = datetime.utcnow() + timedelta(hours=24)
+        reward_message = f"+{reward['amount']}% HP boost for 24 hours!"
+
+    current_user.last_spin_date = today
+    current_user.update_stats()
+    db.session.commit()
+
+    return jsonify({
+        'success': True,
+        'reward_index': reward_index,
+        'reward': reward,
+        'message': reward_message,
+        'new_coins': current_user.coins
+    })
+
+
 # ============== Battle System Routes ==============
 
 @app.route('/battle')
-@login_required
 def battle_lobby():
     """Battle lobby - find opponents and manage parties."""
+    # Check if user is a guest
+    is_guest = not current_user.is_authenticated
+
+    if is_guest:
+        # Guest battle lobby
+        guest_battles_today = int(request.cookies.get('guest_battles', 0))
+        can_battle = guest_battles_today < 3
+
+        # Get available battles
+        available_battles = Battle.query.filter(
+            Battle.status == 'waiting'
+        ).order_by(Battle.created_at.desc()).limit(20).all()
+
+        return render_template('battle_lobby_guest.html',
+                              available_battles=available_battles,
+                              battles_remaining=3 - guest_battles_today,
+                              can_battle=can_battle)
+
+    # Logged in user battle lobby
     # Get user's active party
     active_party = Party.query.filter_by(user_id=current_user.id, is_active=True).first()
 
@@ -916,13 +1081,17 @@ def battle_lobby():
         db.or_(Battle.player1_id == current_user.id, Battle.player2_id == current_user.id)
     ).order_by(Battle.ended_at.desc()).limit(10).all()
 
+    # Check if user can spin today
+    can_spin = current_user.last_spin_date != date.today()
+
     return render_template('battle_lobby.html',
                           active_party=active_party,
                           parties=parties,
                           available_battles=available_battles,
                           my_battles=my_battles,
                           battle_stats=battle_stats,
-                          recent_battles=recent_battles)
+                          recent_battles=recent_battles,
+                          can_spin=can_spin)
 
 
 @app.route('/battle/party')
@@ -1048,6 +1217,140 @@ def api_reorder_party():
 
     db.session.commit()
     return jsonify({'success': True})
+
+
+@app.route('/battle/guest/create', methods=['POST'])
+def guest_create_battle():
+    """Create a guest battle with starter Pokemon."""
+    # Check guest battle limit
+    guest_battles = int(request.cookies.get('guest_battles', 0))
+    guest_date = request.cookies.get('guest_date', '')
+
+    today = date.today().isoformat()
+    if guest_date != today:
+        guest_battles = 0
+
+    if guest_battles >= 3:
+        flash('You have used all 3 guest battles today. Register for unlimited battles!', 'error')
+        return redirect(url_for('battle_lobby'))
+
+    # Get or create guest user
+    guest_user = User.query.filter_by(username='_GuestPlayer_').first()
+    if not guest_user:
+        guest_user = User(
+            username='_GuestPlayer_',
+            email='guest@flexdex.local',
+            password_hash='guest_no_login'
+        )
+        db.session.add(guest_user)
+        db.session.commit()
+
+    # Get or create guest party with starter Pokemon
+    guest_party = Party.query.filter_by(user_id=guest_user.id, is_active=True).first()
+    if not guest_party:
+        guest_party = Party(user_id=guest_user.id, name='Starter Team', is_active=True)
+        db.session.add(guest_party)
+        db.session.commit()
+
+        # Add starter Pokemon to party
+        for i, card_id in enumerate(random.sample(STARTER_POKEMON_IDS, min(6, len(STARTER_POKEMON_IDS)))):
+            card = Card.query.filter_by(card_id=card_id).first()
+            if card:
+                pc = PartyCard(party_id=guest_party.id, card_id=card.id, position=i+1)
+                db.session.add(pc)
+        db.session.commit()
+
+    # Create battle
+    battle = Battle(
+        player1_id=guest_user.id,
+        player1_party_id=guest_party.id,
+        status='waiting'
+    )
+    db.session.add(battle)
+    db.session.commit()
+
+    # Set cookie to track battles
+    response = redirect(url_for('battle_room', battle_id=battle.id))
+    response.set_cookie('guest_battles', str(guest_battles + 1), max_age=86400)
+    response.set_cookie('guest_date', today, max_age=86400)
+    response.set_cookie('guest_battle_id', str(battle.id), max_age=3600)
+
+    flash('Guest battle created! Waiting for opponent...', 'success')
+    return response
+
+
+@app.route('/battle/guest/join/<int:battle_id>', methods=['POST'])
+def guest_join_battle(battle_id):
+    """Join a battle as guest."""
+    # Check guest battle limit
+    guest_battles = int(request.cookies.get('guest_battles', 0))
+    guest_date = request.cookies.get('guest_date', '')
+
+    today = date.today().isoformat()
+    if guest_date != today:
+        guest_battles = 0
+
+    if guest_battles >= 3:
+        flash('You have used all 3 guest battles today. Register for unlimited battles!', 'error')
+        return redirect(url_for('battle_lobby'))
+
+    battle = Battle.query.get_or_404(battle_id)
+
+    if battle.status != 'waiting':
+        flash('This battle is no longer available', 'error')
+        return redirect(url_for('battle_lobby'))
+
+    # Get or create second guest user
+    guest_user2 = User.query.filter_by(username='_GuestPlayer2_').first()
+    if not guest_user2:
+        guest_user2 = User(
+            username='_GuestPlayer2_',
+            email='guest2@flexdex.local',
+            password_hash='guest_no_login'
+        )
+        db.session.add(guest_user2)
+        db.session.commit()
+
+    # Get or create guest party
+    guest_party2 = Party.query.filter_by(user_id=guest_user2.id, is_active=True).first()
+    if not guest_party2:
+        guest_party2 = Party(user_id=guest_user2.id, name='Starter Team 2', is_active=True)
+        db.session.add(guest_party2)
+        db.session.commit()
+
+        for i, card_id in enumerate(random.sample(STARTER_POKEMON_IDS, min(6, len(STARTER_POKEMON_IDS)))):
+            card = Card.query.filter_by(card_id=card_id).first()
+            if card:
+                pc = PartyCard(party_id=guest_party2.id, card_id=card.id, position=i+1)
+                db.session.add(pc)
+        db.session.commit()
+
+    # Join battle
+    battle.player2_id = guest_user2.id
+    battle.player2_party_id = guest_party2.id
+    battle.status = 'active'
+    battle.started_at = datetime.utcnow()
+
+    # Initialize HP
+    p1_hp = {}
+    p2_hp = {}
+    for pc in battle.player1_party.get_cards():
+        p1_hp[str(pc.card.id)] = pc.card.hp or 100
+    for pc in battle.player2_party.get_cards():
+        p2_hp[str(pc.card.id)] = pc.card.hp or 100
+
+    battle.set_player1_hp(p1_hp)
+    battle.set_player2_hp(p2_hp)
+    db.session.commit()
+
+    # Set cookie
+    response = redirect(url_for('battle_room', battle_id=battle.id))
+    response.set_cookie('guest_battles', str(guest_battles + 1), max_age=86400)
+    response.set_cookie('guest_date', today, max_age=86400)
+    response.set_cookie('guest_battle_id', str(battle.id), max_age=3600)
+
+    flash('Joined battle! Good luck!', 'success')
+    return response
 
 
 @app.route('/battle/create', methods=['POST'])

@@ -52,6 +52,12 @@ class User(UserMixin, db.Model):
     unique_pokemon = db.Column(db.Integer, default=0)
     collection_value = db.Column(db.Float, default=0.0)
 
+    # Daily Rewards System
+    coins = db.Column(db.Integer, default=100)  # Starting coins
+    last_spin_date = db.Column(db.Date, nullable=True)  # Last daily spin
+    battle_boost_type = db.Column(db.String(20), nullable=True)  # damage, hp, defense
+    battle_boost_expires = db.Column(db.DateTime, nullable=True)  # When boost expires
+
     binders = db.relationship('Binder', backref='owner', lazy='dynamic', cascade='all, delete-orphan')
     cards = db.relationship('UserCard', backref='owner', lazy='dynamic', cascade='all, delete-orphan')
 

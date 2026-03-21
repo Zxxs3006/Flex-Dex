@@ -27,15 +27,19 @@
 
     <!-- Spin the Wheel -->
     <div class="wheel-container">
-        <div class="wheel-frame pixel-border">
+        <div class="wheel-wrapper">
             <div class="wheel-pointer">▼</div>
             <div class="wheel" id="wheel">
-                {% for reward in spin_rewards %}
-                <div class="wheel-segment" style="--segment-color: {{ reward.color }}; --segment-index: {{ loop.index0 }};">
-                    <span class="segment-label">{{ reward.label }}</span>
-                </div>
-                {% endfor %}
+                <div class="wheel-segment seg-0"><span>50 Coins</span></div>
+                <div class="wheel-segment seg-1"><span>100 Coins</span></div>
+                <div class="wheel-segment seg-2"><span>250 Coins</span></div>
+                <div class="wheel-segment seg-3"><span>Card</span></div>
+                <div class="wheel-segment seg-4"><span>Rare!</span></div>
+                <div class="wheel-segment seg-5"><span>Booster</span></div>
+                <div class="wheel-segment seg-6"><span>+DMG</span></div>
+                <div class="wheel-segment seg-7"><span>+HP</span></div>
             </div>
+            <div class="wheel-center"></div>
         </div>
 
         {% if can_spin %}
@@ -60,15 +64,18 @@
         </div>
     </div>
 
-    <!-- Rewards Info -->
+    <!-- Rewards Legend -->
     <div class="rewards-info pixel-border">
         <h3 class="pixel-text">Possible Rewards</h3>
         <div class="rewards-grid">
-            {% for reward in spin_rewards %}
-            <div class="reward-item" style="border-color: {{ reward.color }};">
-                <span class="reward-label">{{ reward.label }}</span>
-            </div>
-            {% endfor %}
+            <div class="reward-item" style="background: #FFD700;">50 Coins</div>
+            <div class="reward-item" style="background: #FFA500;">100 Coins</div>
+            <div class="reward-item" style="background: #FF6347;">250 Coins</div>
+            <div class="reward-item" style="background: #90EE90;">Random Card</div>
+            <div class="reward-item" style="background: #87CEEB;">Rare Card</div>
+            <div class="reward-item" style="background: #DDA0DD;">Mini Booster</div>
+            <div class="reward-item" style="background: #FF4444; color: white;">+10% Damage</div>
+            <div class="reward-item" style="background: #44FF44;">+10% HP</div>
         </div>
     </div>
 
@@ -184,62 +191,94 @@
     margin: 30px 0;
 }
 
-.wheel-frame {
+.wheel-wrapper {
+    position: relative;
     width: 280px;
     height: 280px;
     margin: 0 auto 20px;
-    border-radius: 50%;
-    position: relative;
-    padding: 10px;
-    background: linear-gradient(180deg, #444 0%, #222 100%);
 }
 
 .wheel-pointer {
     position: absolute;
-    top: -15px;
+    top: -20px;
     left: 50%;
     transform: translateX(-50%);
-    font-size: 2em;
+    font-size: 2.5em;
     color: #ff0000;
-    z-index: 10;
+    z-index: 20;
     text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+    filter: drop-shadow(0 2px 2px rgba(0,0,0,0.3));
 }
 
 .wheel {
-    width: 250px;
-    height: 250px;
+    width: 280px;
+    height: 280px;
     border-radius: 50%;
     position: relative;
-    margin: 5px auto;
-    background: conic-gradient(
-        #FFD700 0deg 45deg,
-        #FFA500 45deg 90deg,
-        #FF6347 90deg 135deg,
-        #90EE90 135deg 180deg,
-        #87CEEB 180deg 225deg,
-        #DDA0DD 225deg 270deg,
-        #FF4444 270deg 315deg,
-        #44FF44 315deg 360deg
-    );
+    border: 6px solid #333;
+    box-shadow: 0 0 20px rgba(0,0,0,0.3), inset 0 0 30px rgba(0,0,0,0.2);
     transition: transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99);
-    box-shadow: inset 0 0 20px rgba(0,0,0,0.3);
+    overflow: hidden;
+    background: #333;
 }
 
-.wheel::after {
-    content: '';
+.wheel-segment {
+    position: absolute;
+    width: 50%;
+    height: 50%;
+    top: 0;
+    right: 0;
+    transform-origin: 0% 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    clip-path: polygon(0 100%, 100% 100%, 100% 0);
+}
+
+.wheel-segment span {
+    position: absolute;
+    font-size: 0.6em;
+    font-weight: bold;
+    color: #000;
+    text-shadow: 1px 1px 0 #fff;
+    transform: rotate(22.5deg) translateY(-30px);
+    text-align: center;
+    width: 60px;
+    right: 15px;
+    top: 50%;
+}
+
+/* Segment colors and positions */
+.seg-0 { background: #FFD700; transform: rotate(0deg) skewY(-45deg); }
+.seg-1 { background: #FFA500; transform: rotate(45deg) skewY(-45deg); }
+.seg-2 { background: #FF6347; transform: rotate(90deg) skewY(-45deg); }
+.seg-3 { background: #90EE90; transform: rotate(135deg) skewY(-45deg); }
+.seg-4 { background: #87CEEB; transform: rotate(180deg) skewY(-45deg); }
+.seg-5 { background: #DDA0DD; transform: rotate(225deg) skewY(-45deg); }
+.seg-6 { background: #FF4444; transform: rotate(270deg) skewY(-45deg); }
+.seg-7 { background: #44FF44; transform: rotate(315deg) skewY(-45deg); }
+
+.wheel-center {
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 40px;
-    height: 40px;
+    width: 50px;
+    height: 50px;
     background: linear-gradient(180deg, #fff 0%, #ccc 100%);
     border-radius: 50%;
     border: 4px solid #222;
+    z-index: 10;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
 }
 
-.wheel.spinning {
-    transition: transform 4s cubic-bezier(0.17, 0.67, 0.12, 0.99);
+.wheel-center::after {
+    content: '🎰';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 1.5em;
 }
 
 .spin-btn {
@@ -330,16 +369,16 @@
 .rewards-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
+    gap: 8px;
 }
 
 .reward-item {
-    padding: 10px;
+    padding: 10px 8px;
     text-align: center;
-    background: #fff;
-    border: 3px solid;
+    border: 2px solid #222;
     border-radius: 5px;
-    font-size: 0.75em;
+    font-size: 0.7em;
+    font-weight: bold;
 }
 
 /* Benefits Section */
@@ -394,8 +433,11 @@ async function spinWheel() {
 
     if (data.success) {
         // Calculate rotation (8 segments, each 45 degrees)
-        const segmentAngle = 360 / 8;
-        const targetAngle = (7 - data.reward_index) * segmentAngle + (segmentAngle / 2);
+        // Segment 0 is at top (0 degrees), so we need to land on the correct segment
+        const segmentAngle = 45;
+        // Calculate where the segment is and add offset to land in middle
+        const targetSegment = data.reward_index;
+        const targetAngle = (360 - (targetSegment * segmentAngle)) - (segmentAngle / 2);
         const spins = 5; // Number of full rotations
         const totalRotation = (spins * 360) + targetAngle;
 

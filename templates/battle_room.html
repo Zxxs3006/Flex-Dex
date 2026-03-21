@@ -53,10 +53,15 @@
                     <span class="hp-text">{{ current_hp }}/{{ max_hp }} HP</span>
                 </div>
                 <div class="card-container">
-                    <img src="{{ opponent_active_card.image_large or opponent_active_card.image_small or '' }}"
+                    {% if opponent_active_card.image_small %}
+                    <img src="{{ opponent_active_card.image_small }}"
                          alt="{{ opponent_active_card.name }}" class="pokemon-card-battle opponent-card"
-                         id="opponent-pokemon-card"
-                         onerror="this.style.background='linear-gradient(135deg, #667eea 0%, #764ba2 100%)'; this.alt='{{ opponent_active_card.name }}';">
+                         id="opponent-pokemon-card">
+                    {% else %}
+                    <div class="pokemon-card-battle opponent-card pokemon-placeholder" id="opponent-pokemon-card">
+                        <span>{{ opponent_active_card.name }}</span>
+                    </div>
+                    {% endif %}
                     <div class="damage-popup" id="opponent-damage-popup"></div>
                 </div>
             </div>
@@ -79,10 +84,15 @@
             {% if my_active_card %}
             <div class="pokemon-display" id="my-pokemon">
                 <div class="card-container">
-                    <img src="{{ my_active_card.image_large or my_active_card.image_small or '' }}"
+                    {% if my_active_card.image_small %}
+                    <img src="{{ my_active_card.image_small }}"
                          alt="{{ my_active_card.name }}" class="pokemon-card-battle your-card"
-                         id="my-pokemon-card"
-                         onerror="this.style.background='linear-gradient(135deg, #667eea 0%, #764ba2 100%)'; this.alt='{{ my_active_card.name }}';">
+                         id="my-pokemon-card">
+                    {% else %}
+                    <div class="pokemon-card-battle your-card pokemon-placeholder" id="my-pokemon-card">
+                        <span>{{ my_active_card.name }}</span>
+                    </div>
+                    {% endif %}
                     <div class="damage-popup" id="my-damage-popup"></div>
                 </div>
                 <div class="pokemon-info-bar pixel-border">
@@ -159,8 +169,11 @@
                     {% if pc.position != my_active and pc.card.id not in (battle.get_player1_knocked_out() if is_player1 else battle.get_player2_knocked_out()) %}
                     {% set card_hp = my_hp.get(pc.card.id|string, pc.card.hp or 100) %}
                     <div class="switch-option pixel-border" onclick="executeSwitch({{ pc.position }})">
-                        <img src="{{ pc.card.image_small or pc.card.image_large or '' }}" alt="{{ pc.card.name }}"
-                             onerror="this.style.background='linear-gradient(135deg, #667eea 0%, #764ba2 100%)';">
+                        {% if pc.card.image_small %}
+                        <img src="{{ pc.card.image_small }}" alt="{{ pc.card.name }}">
+                        {% else %}
+                        <div class="switch-placeholder">{{ pc.card.name[:3] }}</div>
+                        {% endif %}
                         <div class="switch-info">
                             <span class="switch-name">{{ pc.card.name }}</span>
                             <span class="switch-hp">HP: {{ card_hp }}/{{ pc.card.hp or 100 }}</span>
@@ -474,6 +487,18 @@
     display: block;
 }
 
+.pokemon-placeholder {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 10px;
+    color: white;
+    font-weight: bold;
+    font-size: 0.8em;
+}
+
 .opponent-card {
     transform: perspective(500px) rotateY(-5deg);
 }
@@ -762,6 +787,20 @@
     border: 2px solid #222;
 }
 
+.switch-placeholder {
+    width: 50px;
+    height: 70px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 5px;
+    border: 2px solid #222;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 0.8em;
+}
+
 .switch-info {
     flex: 1;
 }
@@ -1046,6 +1085,37 @@
     animation: screen-shake 0.4s ease-out;
 }
 
+/* Card entrance animations */
+@keyframes enter-from-right {
+    from {
+        opacity: 0;
+        transform: translateX(50px) perspective(500px) rotateY(5deg);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0) perspective(500px) rotateY(5deg);
+    }
+}
+
+@keyframes enter-from-left {
+    from {
+        opacity: 0;
+        transform: translateX(-50px) perspective(500px) rotateY(-5deg);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0) perspective(500px) rotateY(-5deg);
+    }
+}
+
+.card-enter-right {
+    animation: enter-from-right 0.5s ease-out forwards;
+}
+
+.card-enter-left {
+    animation: enter-from-left 0.5s ease-out forwards;
+}
+
 /* Damage Popup Element */
 .damage-popup {
     position: absolute;
@@ -1158,27 +1228,41 @@ function sleep(ms) {
 }
 
 function showAttacks() {
-    document.getElementById('attack-selection').style.display = 'block';
-    document.getElementById('switch-selection').style.display = 'none';
+    console.log('showAttacks called');
+    var attackSel = document.getElementById('attack-selection');
+    var switchSel = document.getElementById('switch-selection');
+    if (attackSel) attackSel.style.display = 'block';
+    if (switchSel) switchSel.style.display = 'none';
 }
 
 function showSwitch() {
-    document.getElementById('switch-selection').style.display = 'block';
-    document.getElementById('attack-selection').style.display = 'none';
+    console.log('showSwitch called');
+    var attackSel = document.getElementById('attack-selection');
+    var switchSel = document.getElementById('switch-selection');
+    if (switchSel) switchSel.style.display = 'block';
+    if (attackSel) attackSel.style.display = 'none';
 }
 
 function hideMenus() {
-    document.getElementById('attack-selection').style.display = 'none';
-    document.getElementById('switch-selection').style.display = 'none';
+    console.log('hideMenus called');
+    var attackSel = document.getElementById('attack-selection');
+    var switchSel = document.getElementById('switch-selection');
+    if (attackSel) attackSel.style.display = 'none';
+    if (switchSel) switchSel.style.display = 'none';
 }
 
 async function executeAttack(attackIndex) {
-    if (isAnimating) return;
+    console.log('executeAttack called with index:', attackIndex);
+    if (isAnimating) {
+        console.log('Animation in progress, returning');
+        return;
+    }
     isAnimating = true;
 
     const myCard = document.getElementById('my-pokemon-card');
     const oppCard = document.getElementById('opponent-pokemon-card');
     const arena = document.querySelector('.battle-arena');
+    console.log('Elements found:', { myCard: !!myCard, oppCard: !!oppCard, arena: !!arena });
 
     // Hide menus
     hideMenus();
@@ -1350,25 +1434,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const myCard = document.getElementById('my-pokemon-card');
     const oppCard = document.getElementById('opponent-pokemon-card');
 
+    // Simple slide-in animation using CSS class
     if (myCard) {
-        myCard.style.opacity = '0';
-        myCard.style.transform = 'translateX(80px) scale(0.8)';
-        setTimeout(() => {
-            myCard.style.transition = 'all 0.4s ease-out';
-            myCard.style.opacity = '1';
-            myCard.style.transform = 'perspective(500px) rotateY(5deg)';
-        }, 100);
+        myCard.classList.add('card-enter-right');
     }
 
     if (oppCard) {
-        oppCard.style.opacity = '0';
-        oppCard.style.transform = 'translateX(-80px) scale(0.8)';
-        setTimeout(() => {
-            oppCard.style.transition = 'all 0.4s ease-out';
-            oppCard.style.opacity = '1';
-            oppCard.style.transform = 'perspective(500px) rotateY(-5deg)';
-        }, 300);
+        oppCard.classList.add('card-enter-left');
     }
+
+    // Debug: Log that JS loaded
+    console.log('Battle JS loaded, battleId:', battleId);
 });
 </script>
 {% endblock %}

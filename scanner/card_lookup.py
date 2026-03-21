@@ -1,4 +1,5 @@
 import requests
+import random
 from typing import Optional, Dict, List, Any
 
 
@@ -301,3 +302,161 @@ class CardLookup:
         except requests.RequestException as e:
             print(f"API request failed: {e}")
             return []
+
+    # ============== Shop Methods (using pokemontcg.io) ==============
+
+    def get_shop_sets(self, limit: int = 20) -> List[Dict[str, Any]]:
+        """Get available sets for the shop from pokemontcg.io."""
+        try:
+            headers = {'X-Api-Key': self.api_key} if self.api_key else {}
+            response = self.session.get(
+                f'{self.POKEMONTCG_URL}/sets',
+                params={'pageSize': limit, 'orderBy': '-releaseDate'},
+                headers=headers,
+                timeout=30
+            )
+            response.raise_for_status()
+            data = response.json()
+            return data.get('data', [])
+        except requests.RequestException as e:
+            print(f"PokemonTCG API request failed: {e}")
+            return []
+
+    def get_set_by_id(self, set_id: str) -> Optional[Dict[str, Any]]:
+        """Get a specific set by its ID from pokemontcg.io."""
+        try:
+            headers = {'X-Api-Key': self.api_key} if self.api_key else {}
+            response = self.session.get(
+                f'{self.POKEMONTCG_URL}/sets/{set_id}',
+                headers=headers,
+                timeout=20
+            )
+            response.raise_for_status()
+            data = response.json()
+            return data.get('data')
+        except requests.RequestException as e:
+            print(f"PokemonTCG API request failed: {e}")
+            return None
+
+    def get_all_cards_from_set(self, set_id: str) -> List[Dict[str, Any]]:
+        """Get ALL cards from a specific set (handles pagination)."""
+        all_cards = []
+        page = 1
+        page_size = 250
+
+        while True:
+            try:
+                headers = {'X-Api-Key': self.api_key} if self.api_key else {}
+                response = self.session.get(
+                    f'{self.POKEMONTCG_URL}/cards',
+                    params={
+                        'q': f'set.id:{set_id}',
+                        'pageSize': page_size,
+                        'page': page,
+                        'orderBy': 'number'
+                    },
+                    headers=headers,
+                    timeout=30
+                )
+                response.raise_for_status()
+                data = response.json()
+                cards = data.get('data', [])
+
+                if not cards:
+                    break
+
+                all_cards.extend(cards)
+
+                total_count = data.get('totalCount', 0)
+                if len(all_cards) >= total_count:
+                    break
+
+                page += 1
+
+            except requests.RequestException as e:
+                print(f"API request failed: {e}")
+                break
+
+        return all_cards
+
+    def calculate_pack_price(self, set_id: str, cards: List[Dict[str, Any]] = None) -> int:
+        """Calculate pack price based on set tier and card market values."""
+        set_info = self.get_set_by_id(set_id)
+        if set_info:
+            release_date = set_info.get('releaseDate', '')
+
+            # Vintage sets (pre-2010)
+            if release_date and release_date < '2010':
+                return 999
+
+            # Premium sets (special series)
+            series = set_info.get('series', '').lower()
+            if any(x in series for x in ['premium', 'special', 'celebrations', 'shiny']):
+                return 599
+
+        # Default fallback: $4.49
+        return 449
+
+    def generate_pack_cards(self, set_id: str, count: int = 10) -> List[Dict[str, Any]]:
+        """Generate cards for a booster pack with realistic rarity distribution."""
+        rarity_weights = {
+            'Common': 50,
+            'Uncommon': 30,
+            'Rare': 10,
+            'Rare Holo': 5,
+            'Rare Holo V': 2,
+            'Rare Holo VMAX': 0.5,
+            'Rare Holo VSTAR': 0.5,
+            'Rare Ultra': 0.5,
+            'Rare Holo GX': 0.3,
+            'Rare Holo EX': 0.3,
+            'Rare Secret': 0.2,
+            'Rare Rainbow': 0.1,
+            'Rare Shiny': 0.1,
+            'Illustration Rare': 0.3,
+            'Special Art Rare': 0.2,
+            'Double Rare': 1,
+            'Ultra Rare': 0.5,
+            'Hyper Rare': 0.1,
+            'Shiny Rare': 0.2,
+            'ACE SPEC Rare': 0.1,
+        }
+
+        all_cards = self.get_all_cards_from_set(set_id)
+
+        if not all_cards:
+            return []
+
+        # Group by rarity
+        cards_by_rarity = {}
+        for card in all_cards:
+            rarity = card.get('rarity', 'Common')
+            if rarity not in cards_by_rarity:
+                cards_by_rarity[rarity] = []
+            cards_by_rarity[rarity].append(card)
+
+        # Build weighted list of available rarities
+        available_rarities = []
+        weights = []
+        for rarity, cards in cards_by_rarity.items():
+            if cards:
+                available_rarities.append(rarity)
+                weights.append(rarity_weights.get(rarity, 5))
+
+        if not available_rarities:
+            return []
+
+        # Normalize weights
+        total_weight = sum(weights)
+        normalized_weights = [w / total_weight for w in weights]
+
+        # Generate pack
+        pack = []
+        for _ in range(count):
+            rarity = random.choices(available_rarities, weights=normalized_weights, k=1)[0]
+            card = random.choice(cards_by_rarity[rarity])
+            # Mark as from pokemontcg for proper formatting
+            card['_source'] = 'pokemontcg'
+            pack.append(self.format_card_data(card))
+
+        return pack

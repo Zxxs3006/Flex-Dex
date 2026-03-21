@@ -60,6 +60,7 @@ class User(UserMixin, db.Model):
 
     binders = db.relationship('Binder', backref='owner', lazy='dynamic', cascade='all, delete-orphan')
     cards = db.relationship('UserCard', backref='owner', lazy='dynamic', cascade='all, delete-orphan')
+    purchases = db.relationship('ShopPurchase', backref='buyer', lazy='dynamic', cascade='all, delete-orphan')
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)
@@ -452,3 +453,19 @@ class BattleStats(db.Model):
 
     def __repr__(self):
         return f'<BattleStats {self.user_id} - {self.wins}W/{self.losses}L>'
+
+
+class ShopPurchase(db.Model):
+    """Track user booster pack purchases."""
+    __tablename__ = 'shop_purchases'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
+    set_id = db.Column(db.String(50), nullable=False)
+    set_name = db.Column(db.String(100), nullable=False)
+    coins_spent = db.Column(db.Integer, nullable=False)
+    cards_received = db.Column(db.Text)  # JSON list of card IDs
+    purchased_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<ShopPurchase {self.set_name} by User {self.user_id}>'

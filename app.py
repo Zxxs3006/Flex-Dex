@@ -6,7 +6,7 @@ Web Deployment Version with Ranking System & Regional Pokédex
 from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from config import Config
-from database import db, init_db, User, Card, Binder, UserCard, Achievement, RANKS, REGIONAL_DEXES
+from database import db, init_db, User, Card, Binder, UserCard, Achievement, RANKS, REGIONAL_DEXES, ShopPurchase
 from database.models import Party, PartyCard, Battle, BattleTurn, BattleStats, TYPE_CHART
 from scanner import CardLookup
 from datetime import datetime
@@ -2078,6 +2078,148 @@ def check_achievements(user, old_total):
 
     db.session.commit()
     return rank_up
+
+
+# ============== Shop Routes ==============
+
+@app.route('/shop')
+@login_required
+def shop():
+    """Shop page - browse and buy booster packs."""
+    # Fetch available sets from Pokemon TCG API (most recent 20)
+    raw_sets = card_lookup.get_shop_sets(limit=20)
+
+    sets = []
+    for s in raw_sets:
+        set_data = {
+            'id': s.get('id', ''),
+            'name': s.get('name', ''),
+            'series': s.get('series', ''),
+            'total': s.get('total', 0),
+            'releaseDate': s.get('releaseDate', ''),
+            'images': {
+                'logo': s.get('images', {}).get('logo', ''),
+                'symbol': s.get('images', {}).get('symbol', '')
+            },
+            'price': card_lookup.calculate_pack_price(s.get('id', ''))
+        }
+        sets.append(set_data)
+
+    return render_template('shop.html', sets=sets, coins=current_user.coins)
+
+
+@app.route('/api/shop/buy', methods=['POST'])
+@login_required
+def api_buy_pack():
+    """Purchase a booster pack."""
+    data = request.get_json()
+
+    if not data or 'set_id' not in data:
+        return jsonify({'success': False, 'error': 'No set specified'})
+
+    set_id = data['set_id']
+
+    # Get set info
+    set_info = card_lookup.get_set_by_id(set_id)
+    if not set_info:
+        return jsonify({'success': False, 'error': 'Set not found'})
+
+    # Calculate price
+    pack_price = card_lookup.calculate_pack_price(set_id)
+
+    # Check if user has enough coins
+    if current_user.coins < pack_price:
+        return jsonify({
+            'success': False,
+            'error': 'Not enough coins',
+            'required': pack_price,
+            'current': current_user.coins
+        })
+
+    # Generate 10 random cards from the set
+    cards = card_lookup.generate_pack_cards(set_id, count=10)
+
+    if not cards:
+        return jsonify({'success': False, 'error': 'Failed to generate pack cards'})
+
+    # Deduct coins
+    current_user.coins -= pack_price
+
+    # Add cards to user's collection
+    card_ids = []
+    for card_data in cards:
+        # Get or create card in database
+        card = get_or_create_card(card_data['id'])
+        if card:
+            card_ids.append(card_data['id'])
+
+            # Check if user already has this card
+            user_card = UserCard.query.filter_by(
+                user_id=current_user.id,
+                card_id=card.id,
+                binder_id=None
+            ).first()
+
+            if user_card:
+                user_card.quantity += 1
+            else:
+                user_card = UserCard(
+                    user_id=current_user.id,
+                    card_id=card.id
+                )
+                db.session.add(user_card)
+
+    # Record purchase
+    purchase = ShopPurchase(
+        user_id=current_user.id,
+        set_id=set_id,
+        set_name=set_info.get('name', ''),
+        coins_spent=pack_price,
+        cards_received=json.dumps(card_ids)
+    )
+    db.session.add(purchase)
+
+    db.session.commit()
+
+    # Update user stats
+    current_user.update_stats()
+
+    return jsonify({
+        'success': True,
+        'cards': cards,
+        'coins_spent': pack_price,
+        'coins_remaining': current_user.coins,
+        'set_name': set_info.get('name', '')
+    })
+
+
+@app.route('/api/shop/sets')
+@login_required
+def api_shop_sets():
+    """Get available sets for the shop."""
+    raw_sets = card_lookup.get_shop_sets(limit=20)
+
+    sets = []
+    for s in raw_sets:
+        set_data = {
+            'id': s.get('id', ''),
+            'name': s.get('name', ''),
+            'series': s.get('series', ''),
+            'total': s.get('total', 0),
+            'releaseDate': s.get('releaseDate', ''),
+            'images': {
+                'logo': s.get('images', {}).get('logo', ''),
+                'symbol': s.get('images', {}).get('symbol', '')
+            },
+            'price': card_lookup.calculate_pack_price(s.get('id', ''))
+        }
+        sets.append(set_data)
+
+    return jsonify({
+        'success': True,
+        'sets': sets,
+        'coins': current_user.coins
+    })
 
 
 # ============== Run Application ==============

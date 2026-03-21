@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+
+{% block title %}Pokemon Shop - FlexDex{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/shop.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="shop-container">
+    <div class="shop-header">
+        <h1 class="shop-title">POKEMON SHOP</h1>
+        <div class="coin-balance">
+            <span class="coin-icon">&#x1FA99;</span>
+            <span class="coin-amount" id="coin-amount">{{ coins }}</span>
+            <span class="coin-label">Coins</span>
+        </div>
+    </div>
+
+    <p class="shop-subtitle">Purchase booster packs from authentic Pokemon TCG sets!</p>
+
+    <!-- Available Packs Grid -->
+    <div class="packs-grid">
+        {% for set in sets %}
+        <div class="pack-card" data-set-id="{{ set.id }}" data-price="{{ set.price }}">
+            <div class="pack-logo-container">
+                {% if set.images.logo %}
+                <img src="{{ set.images.logo }}" alt="{{ set.name }}" class="pack-logo">
+                {% else %}
+                <div class="pack-logo-placeholder">{{ set.name[:2] }}</div>
+                {% endif %}
+            </div>
+            <div class="pack-info">
+                <h3 class="pack-name">{{ set.name }}</h3>
+                <p class="pack-series">{{ set.series }}</p>
+                <p class="pack-cards">{{ set.total }} cards in set</p>
+                <div class="pack-price">
+                    <span class="coin-icon">&#x1FA99;</span>
+                    <span class="price-amount">{{ set.price }}</span>
+                </div>
+                <button class="buy-btn" onclick="buyPack('{{ set.id }}', '{{ set.name }}', {{ set.price }})">
+                    BUY PACK
+                </button>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Pack Opening Modal -->
+<div id="pack-opening-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content pack-opening-content">
+        <!-- Phase 1: Pack Display -->
+        <div id="pack-phase" class="pack-phase">
+            <h2 class="opening-title">Opening Pack...</h2>
+            <div class="booster-pack" id="booster-pack">
+                <div class="pack-wrapper">
+                    <div class="pack-front"></div>
+                    <div class="pack-shine"></div>
+                </div>
+            </div>
+            <p class="tap-instruction">Tap the pack to open!</p>
+        </div>
+
+        <!-- Phase 2: Cards Reveal -->
+        <div id="cards-phase" class="cards-phase" style="display: none;">
+            <h2 class="opening-title" id="reveal-title">Tap cards to reveal!</h2>
+            <div class="cards-container" id="cards-container">
+                <!-- Cards will be inserted here -->
+            </div>
+            <div class="reveal-actions" id="reveal-actions" style="display: none;">
+                <button class="action-btn reveal-all-btn" onclick="revealAllCards()">
+                    REVEAL ALL
+                </button>
+            </div>
+        </div>
+
+        <!-- Phase 3: Summary -->
+        <div id="summary-phase" class="summary-phase" style="display: none;">
+            <h2 class="opening-title">Pack Complete!</h2>
+            <div class="summary-cards" id="summary-cards">
+                <!-- Summary cards will be inserted here -->
+            </div>
+            <div class="summary-stats">
+                <p id="coins-spent">Coins spent: 0</p>
+                <p id="coins-remaining">Coins remaining: 0</p>
+            </div>
+            <button class="action-btn close-btn" onclick="closePackOpening()">
+                CONTINUE
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Not Enough Coins Modal -->
+<div id="insufficient-coins-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-content insufficient-modal">
+        <h2>Not Enough Coins!</h2>
+        <p>You need <span id="required-coins">0</span> coins to buy this pack.</p>
+        <p>You currently have <span id="current-coins">0</span> coins.</p>
+        <button class="action-btn" onclick="closeInsufficientModal()">OK</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/shop.js') }}"></script>
+{% endblock %}

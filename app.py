@@ -1217,6 +1217,47 @@ def api_reorder_party():
     return jsonify({'success': True})
 
 
+def get_or_create_guest_party(guest_user, party_name='Starter Team'):
+    """Get or create a guest party with random Pokemon from the database."""
+    # Clear any existing party cards and recreate with fresh random Pokemon
+    guest_party = Party.query.filter_by(user_id=guest_user.id, name=party_name).first()
+
+    if guest_party:
+        # Clear old party cards
+        PartyCard.query.filter_by(party_id=guest_party.id).delete()
+    else:
+        guest_party = Party(user_id=guest_user.id, name=party_name, is_active=True)
+        db.session.add(guest_party)
+        db.session.commit()
+
+    # Get random cards from database (prefer common/basic Pokemon)
+    # First try to get cards with lower HP (typically basic Pokemon)
+    available_cards = Card.query.filter(
+        Card.hp.isnot(None),
+        Card.hp > 0,
+        Card.hp <= 100,  # Basic Pokemon typically have lower HP
+        Card.image_small.isnot(None)
+    ).limit(100).all()
+
+    # If not enough, get any cards
+    if len(available_cards) < 6:
+        available_cards = Card.query.filter(
+            Card.hp.isnot(None),
+            Card.hp > 0,
+            Card.image_small.isnot(None)
+        ).limit(100).all()
+
+    if available_cards:
+        # Pick up to 6 random cards
+        selected_cards = random.sample(available_cards, min(6, len(available_cards)))
+        for i, card in enumerate(selected_cards):
+            pc = PartyCard(party_id=guest_party.id, card_id=card.id, position=i+1)
+            db.session.add(pc)
+        db.session.commit()
+
+    return guest_party
+
+
 @app.route('/battle/guest/create', methods=['POST'])
 def guest_create_battle():
     """Create a guest battle with starter Pokemon."""
@@ -1232,6 +1273,12 @@ def guest_create_battle():
         flash('You have used all 3 guest battles today. Register for unlimited battles!', 'error')
         return redirect(url_for('battle_lobby'))
 
+    # Check if there are any cards in the database
+    card_count = Card.query.filter(Card.hp.isnot(None), Card.hp > 0).count()
+    if card_count < 1:
+        flash('No Pokemon cards available yet! Ask a registered user to scan some cards first.', 'error')
+        return redirect(url_for('battle_lobby'))
+
     # Get or create guest user
     guest_user = User.query.filter_by(username='_GuestPlayer_').first()
     if not guest_user:
@@ -1243,20 +1290,8 @@ def guest_create_battle():
         db.session.add(guest_user)
         db.session.commit()
 
-    # Get or create guest party with starter Pokemon
-    guest_party = Party.query.filter_by(user_id=guest_user.id, is_active=True).first()
-    if not guest_party:
-        guest_party = Party(user_id=guest_user.id, name='Starter Team', is_active=True)
-        db.session.add(guest_party)
-        db.session.commit()
-
-        # Add starter Pokemon to party
-        for i, card_id in enumerate(random.sample(STARTER_POKEMON_IDS, min(6, len(STARTER_POKEMON_IDS)))):
-            card = Card.query.filter_by(card_id=card_id).first()
-            if card:
-                pc = PartyCard(party_id=guest_party.id, card_id=card.id, position=i+1)
-                db.session.add(pc)
-        db.session.commit()
+    # Get or create guest party with random Pokemon
+    guest_party = get_or_create_guest_party(guest_user, 'Starter Team')
 
     # Create battle
     battle = Battle(
@@ -1298,6 +1333,12 @@ def guest_join_battle(battle_id):
         flash('This battle is no longer available', 'error')
         return redirect(url_for('battle_lobby'))
 
+    # Check if there are any cards in the database
+    card_count = Card.query.filter(Card.hp.isnot(None), Card.hp > 0).count()
+    if card_count < 1:
+        flash('No Pokemon cards available yet! Ask a registered user to scan some cards first.', 'error')
+        return redirect(url_for('battle_lobby'))
+
     # Get or create second guest user
     guest_user2 = User.query.filter_by(username='_GuestPlayer2_').first()
     if not guest_user2:
@@ -1309,19 +1350,8 @@ def guest_join_battle(battle_id):
         db.session.add(guest_user2)
         db.session.commit()
 
-    # Get or create guest party
-    guest_party2 = Party.query.filter_by(user_id=guest_user2.id, is_active=True).first()
-    if not guest_party2:
-        guest_party2 = Party(user_id=guest_user2.id, name='Starter Team 2', is_active=True)
-        db.session.add(guest_party2)
-        db.session.commit()
-
-        for i, card_id in enumerate(random.sample(STARTER_POKEMON_IDS, min(6, len(STARTER_POKEMON_IDS)))):
-            card = Card.query.filter_by(card_id=card_id).first()
-            if card:
-                pc = PartyCard(party_id=guest_party2.id, card_id=card.id, position=i+1)
-                db.session.add(pc)
-        db.session.commit()
+    # Get or create guest party with random Pokemon from database
+    guest_party2 = get_or_create_guest_party(guest_user2, 'Starter Team 2')
 
     # Join battle
     battle.player2_id = guest_user2.id
@@ -1420,18 +1450,32 @@ def join_battle(battle_id):
 
 
 @app.route('/battle/room/<int:battle_id>')
-@login_required
 def battle_room(battle_id):
     """Battle room - the actual battle UI."""
     battle = Battle.query.get_or_404(battle_id)
 
+    # Determine user_id (handle both logged in users and guests)
+    user_id = None
+    if current_user.is_authenticated:
+        user_id = current_user.id
+    else:
+        # Check if this is a guest battle
+        guest_battle_id = request.cookies.get('guest_battle_id')
+        if guest_battle_id == str(battle_id):
+            guest_user = User.query.filter_by(username='_GuestPlayer_').first()
+            guest_user2 = User.query.filter_by(username='_GuestPlayer2_').first()
+            if guest_user and battle.player1_id == guest_user.id:
+                user_id = guest_user.id
+            elif guest_user2 and battle.player2_id == guest_user2.id:
+                user_id = guest_user2.id
+
     # Verify user is in this battle
-    if current_user.id not in [battle.player1_id, battle.player2_id]:
+    if not user_id or user_id not in [battle.player1_id, battle.player2_id]:
         flash('You are not in this battle', 'error')
         return redirect(url_for('battle_lobby'))
 
     # Determine if current user is player 1 or 2
-    is_player1 = current_user.id == battle.player1_id
+    is_player1 = user_id == battle.player1_id
 
     # Get party cards
     my_party = battle.player1_party if is_player1 else battle.player2_party
@@ -1530,22 +1574,44 @@ def api_battle_state(battle_id):
     })
 
 
+def get_battle_user(battle):
+    """Get the user for a battle - handles both logged in users and guests."""
+    if current_user.is_authenticated:
+        if current_user.id in [battle.player1_id, battle.player2_id]:
+            return current_user
+    else:
+        # Check guest cookie
+        guest_battle_id = request.cookies.get('guest_battle_id')
+        if guest_battle_id == str(battle.id):
+            guest_user = User.query.filter_by(username='_GuestPlayer_').first()
+            guest_user2 = User.query.filter_by(username='_GuestPlayer2_').first()
+            if guest_user and battle.player1_id == guest_user.id:
+                return guest_user
+            elif guest_user2 and battle.player2_id == guest_user2.id:
+                return guest_user2
+    return None
+
+
 @app.route('/api/battle/<int:battle_id>/attack', methods=['POST'])
-@login_required
 def api_battle_attack(battle_id):
     """Execute an attack."""
     battle = Battle.query.get_or_404(battle_id)
 
+    # Get the user (logged in or guest)
+    user = get_battle_user(battle)
+    if not user:
+        return jsonify({'success': False, 'error': 'Not authorized for this battle'})
+
     if battle.status != 'active':
         return jsonify({'success': False, 'error': 'Battle is not active'})
 
-    if not battle.is_player_turn(current_user.id):
+    if not battle.is_player_turn(user.id):
         return jsonify({'success': False, 'error': 'Not your turn'})
 
     data = request.get_json()
     attack_index = data.get('attack_index', 0)
 
-    is_player1 = current_user.id == battle.player1_id
+    is_player1 = user.id == battle.player1_id
 
     # Get active Pokemon
     my_party = battle.player1_party if is_player1 else battle.player2_party
@@ -1665,12 +1731,12 @@ def api_battle_attack(battle_id):
         if not opponent_alive:
             # Battle won!
             battle.status = 'completed'
-            battle.winner_id = current_user.id
+            battle.winner_id = user.id
             battle.ended_at = datetime.utcnow()
-            message += f" {current_user.username} wins the battle!"
+            message += f" {user.username} wins the battle!"
 
             # Update battle stats
-            update_battle_stats(current_user.id, won=True, knockouts=1, damage=damage)
+            update_battle_stats(user.id, won=True, knockouts=1, damage=damage)
             opponent_id = battle.player2_id if is_player1 else battle.player1_id
             update_battle_stats(opponent_id, won=False, knockouts=0, damage=0)
 
@@ -1678,7 +1744,7 @@ def api_battle_attack(battle_id):
     turn = BattleTurn(
         battle_id=battle.id,
         turn_number=battle.current_turn,
-        player_id=current_user.id,
+        player_id=user.id,
         action_type='attack',
         attack_name=attack_name,
         attacker_card_id=attacker.id,
@@ -1709,21 +1775,25 @@ def api_battle_attack(battle_id):
 
 
 @app.route('/api/battle/<int:battle_id>/switch', methods=['POST'])
-@login_required
 def api_battle_switch(battle_id):
     """Switch active Pokemon."""
     battle = Battle.query.get_or_404(battle_id)
 
+    # Get the user (logged in or guest)
+    user = get_battle_user(battle)
+    if not user:
+        return jsonify({'success': False, 'error': 'Not authorized for this battle'})
+
     if battle.status != 'active':
         return jsonify({'success': False, 'error': 'Battle is not active'})
 
-    if not battle.is_player_turn(current_user.id):
+    if not battle.is_player_turn(user.id):
         return jsonify({'success': False, 'error': 'Not your turn'})
 
     data = request.get_json()
     new_position = data.get('position')
 
-    is_player1 = current_user.id == battle.player1_id
+    is_player1 = user.id == battle.player1_id
 
     # Verify Pokemon is not knocked out
     my_party = battle.player1_party if is_player1 else battle.player2_party
@@ -1744,13 +1814,13 @@ def api_battle_switch(battle_id):
     else:
         battle.player2_active = new_position
 
-    message = f"{current_user.username} sent out {target_card.name}!"
+    message = f"{user.username} sent out {target_card.name}!"
 
     # Record turn
     turn = BattleTurn(
         battle_id=battle.id,
         turn_number=battle.current_turn,
-        player_id=current_user.id,
+        player_id=user.id,
         action_type='switch',
         switched_to_card_id=target_card.id,
         message=message
@@ -1767,18 +1837,19 @@ def api_battle_switch(battle_id):
 
 
 @app.route('/api/battle/<int:battle_id>/forfeit', methods=['POST'])
-@login_required
 def api_battle_forfeit(battle_id):
     """Forfeit the battle."""
     battle = Battle.query.get_or_404(battle_id)
 
-    if current_user.id not in [battle.player1_id, battle.player2_id]:
+    # Get the user (logged in or guest)
+    user = get_battle_user(battle)
+    if not user:
         return jsonify({'success': False, 'error': 'Not in this battle'})
 
     if battle.status not in ['waiting', 'active']:
         return jsonify({'success': False, 'error': 'Cannot forfeit this battle'})
 
-    is_player1 = current_user.id == battle.player1_id
+    is_player1 = user.id == battle.player1_id
 
     if battle.status == 'waiting':
         # Just cancel if waiting
@@ -1790,16 +1861,16 @@ def api_battle_forfeit(battle_id):
         battle.ended_at = datetime.utcnow()
 
         # Update stats
-        update_battle_stats(current_user.id, won=False, knockouts=0, damage=0)
+        update_battle_stats(user.id, won=False, knockouts=0, damage=0)
         update_battle_stats(battle.winner_id, won=True, knockouts=0, damage=0)
 
         # Record turn
         turn = BattleTurn(
             battle_id=battle.id,
             turn_number=battle.current_turn,
-            player_id=current_user.id,
+            player_id=user.id,
             action_type='forfeit',
-            message=f"{current_user.username} forfeited the battle!"
+            message=f"{user.username} forfeited the battle!"
         )
         db.session.add(turn)
 
@@ -1809,12 +1880,13 @@ def api_battle_forfeit(battle_id):
 
 
 @app.route('/api/battle/<int:battle_id>/turns')
-@login_required
 def api_battle_turns(battle_id):
     """Get battle turn log."""
     battle = Battle.query.get_or_404(battle_id)
 
-    if current_user.id not in [battle.player1_id, battle.player2_id]:
+    # Get the user (logged in or guest)
+    user = get_battle_user(battle)
+    if not user:
         return jsonify({'success': False, 'error': 'Not in this battle'})
 
     turns = BattleTurn.query.filter_by(battle_id=battle_id).order_by(
